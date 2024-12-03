@@ -1,4 +1,4 @@
-package main
+package parser
 
 type Env struct {
 	vars  map[string]float64

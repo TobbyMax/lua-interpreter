@@ -4,10 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+
+	"lua-interpreter/internal/lexer"
+	"lua-interpreter/internal/parser"
 )
 
 func main() {
-	env := NewEnv()
+	env := parser.NewEnv()
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Println("LuaGo Interpreter (type 'exit' to quit)")
 	for {
@@ -19,8 +22,8 @@ func main() {
 		if line == "exit" {
 			break
 		}
-		tokens := Lex(line)
-		ast, err := Parse(tokens)
+		tokens := lexer.Lex(line)
+		ast, err := parser.Parse(tokens)
 		if err != nil {
 			fmt.Println("Parse error:", err)
 			continue

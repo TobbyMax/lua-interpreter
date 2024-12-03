@@ -1,9 +1,11 @@
-package main
+package parser
 
 import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"lua-interpreter/internal/lexer"
 )
 
 type Node interface {
@@ -91,19 +93,19 @@ func (n *BinOpNode) Eval(env *Env) error {
 	return nil
 }
 
-func Parse(tokens []Token) (Node, error) {
+func Parse(tokens []lexer.Token) (Node, error) {
 	pos := 0
-	next := func() Token {
+	next := func() lexer.Token {
 		if pos >= len(tokens) {
-			return Token{TokEOF, ""}
+			return lexer.Token{lexer.TokEOF, ""}
 		}
 		tok := tokens[pos]
 		pos++
 		return tok
 	}
-	peek := func() Token {
+	peek := func() lexer.Token {
 		if pos >= len(tokens) {
-			return Token{TokEOF, ""}
+			return lexer.Token{lexer.TokEOF, ""}
 		}
 		return tokens[pos]
 	}
@@ -111,10 +113,10 @@ func Parse(tokens []Token) (Node, error) {
 	parseExpr := func() (Node, error) {
 		tok := next()
 		switch tok.Type {
-		case TokNumber:
+		case lexer.TokNumber:
 			val, _ := strconv.ParseFloat(tok.Value, 64)
 			return &NumberNode{val}, nil
-		case TokIdent:
+		case lexer.TokIdent:
 			return &VarNode{tok.Value}, nil
 		default:
 			return nil, errors.New("unexpected token: " + tok.Value)
@@ -124,8 +126,8 @@ func Parse(tokens []Token) (Node, error) {
 	parse := func() (Node, error) {
 		tok := next()
 		switch tok.Type {
-		case TokIdent:
-			if peek().Type == TokAssign {
+		case lexer.TokIdent:
+			if peek().Type == lexer.TokAssign {
 				next() // consume '='
 				expr, err := parseExpr()
 				if err != nil {
@@ -133,7 +135,7 @@ func Parse(tokens []Token) (Node, error) {
 				}
 				return &AssignNode{tok.Value, expr}, nil
 			}
-		case TokPrint:
+		case lexer.TokPrint:
 			expr, err := parseExpr()
 			if err != nil {
 				return nil, err
