@@ -11,7 +11,7 @@ func Compile(tokens []lexer.Token) ([]Instruction, error) {
 	pos := 0
 	next := func() lexer.Token {
 		if pos >= len(tokens) {
-			return lexer.Token{Type: lexer.TokEOF}
+			return lexer.Token{Type: lexer.TokenEOF}
 		}
 		tok := tokens[pos]
 		pos++
@@ -19,7 +19,7 @@ func Compile(tokens []lexer.Token) ([]Instruction, error) {
 	}
 	peek := func() lexer.Token {
 		if pos >= len(tokens) {
-			return lexer.Token{Type: lexer.TokEOF}
+			return lexer.Token{Type: lexer.TokenEOF}
 		}
 		return tokens[pos]
 	}
@@ -28,15 +28,15 @@ func Compile(tokens []lexer.Token) ([]Instruction, error) {
 
 	tok := next()
 	switch tok.Type {
-	case lexer.TokIdent:
-		if peek().Type == lexer.TokAssign {
+	case lexer.TokenIdent:
+		if peek().Type == lexer.TokenAssign {
 			next()
 			expr := next()
 			switch expr.Type {
-			case lexer.TokNumber:
+			case lexer.TokenNumber:
 				val, _ := strconv.ParseFloat(expr.Value, 64)
 				instrs = append(instrs, Instruction{Op: OpPushConst, Value: val})
-			case lexer.TokIdent:
+			case lexer.TokenIdent:
 				instrs = append(instrs, Instruction{Op: OpLoadVar, Arg: expr.Value})
 			default:
 				return nil, errors.New("unexpected expression in assignment")
@@ -45,13 +45,13 @@ func Compile(tokens []lexer.Token) ([]Instruction, error) {
 		} else {
 			return nil, errors.New("unexpected identifier without assignment")
 		}
-	case lexer.TokPrint:
+	case lexer.TokenPrint:
 		expr := next()
 		switch expr.Type {
-		case lexer.TokNumber:
+		case lexer.TokenNumber:
 			val, _ := strconv.ParseFloat(expr.Value, 64)
 			instrs = append(instrs, Instruction{Op: OpPushConst, Value: val})
-		case lexer.TokIdent:
+		case lexer.TokenIdent:
 			instrs = append(instrs, Instruction{Op: OpLoadVar, Arg: expr.Value})
 		default:
 			return nil, errors.New("invalid print argument")

@@ -97,7 +97,7 @@ func Parse(tokens []lexer.Token) (Node, error) {
 	pos := 0
 	next := func() lexer.Token {
 		if pos >= len(tokens) {
-			return lexer.Token{lexer.TokEOF, ""}
+			return lexer.Token{lexer.TokenEOF, ""}
 		}
 		tok := tokens[pos]
 		pos++
@@ -105,7 +105,7 @@ func Parse(tokens []lexer.Token) (Node, error) {
 	}
 	peek := func() lexer.Token {
 		if pos >= len(tokens) {
-			return lexer.Token{lexer.TokEOF, ""}
+			return lexer.Token{lexer.TokenEOF, ""}
 		}
 		return tokens[pos]
 	}
@@ -113,10 +113,10 @@ func Parse(tokens []lexer.Token) (Node, error) {
 	parseExpr := func() (Node, error) {
 		tok := next()
 		switch tok.Type {
-		case lexer.TokNumber:
+		case lexer.TokenNumber:
 			val, _ := strconv.ParseFloat(tok.Value, 64)
 			return &NumberNode{val}, nil
-		case lexer.TokIdent:
+		case lexer.TokenIdent:
 			return &VarNode{tok.Value}, nil
 		default:
 			return nil, errors.New("unexpected token: " + tok.Value)
@@ -126,8 +126,8 @@ func Parse(tokens []lexer.Token) (Node, error) {
 	parse := func() (Node, error) {
 		tok := next()
 		switch tok.Type {
-		case lexer.TokIdent:
-			if peek().Type == lexer.TokAssign {
+		case lexer.TokenIdent:
+			if peek().Type == lexer.TokenAssign {
 				next() // consume '='
 				expr, err := parseExpr()
 				if err != nil {
@@ -135,7 +135,7 @@ func Parse(tokens []lexer.Token) (Node, error) {
 				}
 				return &AssignNode{tok.Value, expr}, nil
 			}
-		case lexer.TokPrint:
+		case lexer.TokenPrint:
 			expr, err := parseExpr()
 			if err != nil {
 				return nil, err

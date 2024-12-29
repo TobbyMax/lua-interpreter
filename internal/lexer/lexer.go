@@ -5,18 +5,18 @@ import (
 	"unicode"
 )
 
-type TokenType string
+type TokenType int
 
 const (
-	TokNumber TokenType = "Number"
-	TokIdent  TokenType = "Ident"
-	TokOp     TokenType = "Operator"
-	TokPrint  TokenType = "Print"
-	TokIf     TokenType = "If"
-	TokThen   TokenType = "Then"
-	TokEnd    TokenType = "End"
-	TokAssign TokenType = "Assign"
-	TokEOF    TokenType = "EOF"
+	TokenNumber TokenType = iota
+	TokenIdent
+	TokenOp
+	TokenPrint
+	TokenIf
+	TokenThen
+	TokenEnd
+	TokenAssign
+	TokenEOF
 )
 
 type Token struct {
@@ -40,32 +40,32 @@ func Lex(input string) []Token {
 			word := input[start:i]
 			switch word {
 			case "print":
-				tokens = append(tokens, Token{TokPrint, word})
+				tokens = append(tokens, Token{TokenPrint, word})
 			case "if":
-				tokens = append(tokens, Token{TokIf, word})
+				tokens = append(tokens, Token{TokenIf, word})
 			case "then":
-				tokens = append(tokens, Token{TokThen, word})
+				tokens = append(tokens, Token{TokenThen, word})
 			case "end":
-				tokens = append(tokens, Token{TokEnd, word})
+				tokens = append(tokens, Token{TokenEnd, word})
 			default:
-				tokens = append(tokens, Token{TokIdent, word})
+				tokens = append(tokens, Token{TokenIdent, word})
 			}
 		case unicode.IsDigit(rune(ch)):
 			start := i
 			for i < len(input) && unicode.IsDigit(rune(input[i])) {
 				i++
 			}
-			tokens = append(tokens, Token{TokNumber, input[start:i]})
+			tokens = append(tokens, Token{TokenNumber, input[start:i]})
 		case ch == '=':
-			tokens = append(tokens, Token{TokAssign, string(ch)})
+			tokens = append(tokens, Token{TokenAssign, string(ch)})
 			i++
 		case strings.ContainsRune("+-*/()", rune(ch)):
-			tokens = append(tokens, Token{TokOp, string(ch)})
+			tokens = append(tokens, Token{TokenOp, string(ch)})
 			i++
 		default:
 			i++
 		}
 	}
-	tokens = append(tokens, Token{TokEOF, ""})
+	tokens = append(tokens, Token{TokenEOF, ""})
 	return tokens
 }
