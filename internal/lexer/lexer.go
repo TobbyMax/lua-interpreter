@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"strings"
 	"unicode"
 )
 
@@ -74,6 +75,12 @@ const (
 	TokenNumeral
 	TokenComment
 	TokenError
+)
+
+const (
+	IdentifierStartSymbols = "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	IdentifierSymbols      = "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	HexNumberSymbols       = ".0123456789abcdefABCDEF"
 )
 
 // for debugging
@@ -246,9 +253,9 @@ func Lex(input string) []Token {
 		switch {
 		case unicode.IsSpace(rune(ch)):
 			i++
-		case unicode.IsLetter(rune(ch)):
+		case strings.ContainsRune(IdentifierStartSymbols, rune(ch)):
 			start := i
-			for i < len(input) && (unicode.IsLetter(rune(input[i])) || unicode.IsDigit(rune(input[i]))) {
+			for i < len(input) && strings.ContainsRune(IdentifierSymbols, rune(input[i])) {
 				i++
 			}
 			word := input[start:i]
@@ -259,10 +266,36 @@ func Lex(input string) []Token {
 			}
 		case unicode.IsDigit(rune(ch)):
 			start := i
-			for i < len(input) && unicode.IsDigit(rune(input[i])) {
-				i++
+			isHex := false
+			isFloat := false
+			isFailed := false
+			if i+1 < len(input) && input[i] == '0' && input[i+1] == 'x' {
+				isHex = true
+				i += 2
 			}
-			tokens = append(tokens, Token{TokenNumeral, input[start:i]})
+			for i < len(input) {
+				if input[i] == '.' {
+					if isFloat {
+						isFailed = true
+						break
+					}
+					isFloat = true
+					i++
+					continue
+				}
+				if isHex && strings.ContainsRune(HexNumberSymbols, rune(input[i])) {
+					i++
+				} else if unicode.IsDigit(rune(input[i])) {
+					i++
+				} else {
+					break
+				}
+			}
+			if isFailed {
+				tokens = append(tokens, Token{TokenError, input[start:i]})
+			} else {
+				tokens = append(tokens, Token{TokenNumeral, input[start:i]})
+			}
 		case ch == '"':
 			start := i
 			i++
@@ -433,6 +466,15 @@ func Lex(input string) []Token {
 				i += 2
 				continue
 			}
+			if i+1 < len(input) && unicode.IsDigit(rune(input[i+1])) {
+				start := i
+				i++
+				for i < len(input) && unicode.IsDigit(rune(input[i])) {
+					i++
+				}
+				tokens = append(tokens, Token{TokenNumeral, input[start:i]})
+				continue
+			}
 			tokens = append(tokens, Token{TokenDot, string(ch)})
 			i++
 		case ch == '(':
@@ -454,6 +496,7 @@ func Lex(input string) []Token {
 			tokens = append(tokens, Token{TokenRightBracket, string(ch)})
 			i++
 		default:
+			tokens = append(tokens, Token{TokenError, string(ch)})
 			i++
 		}
 	}
