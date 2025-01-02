@@ -300,8 +300,42 @@ func Lex(input string) []Token {
 			i++
 		case ch == '-':
 			if i+1 < len(input) && input[i+1] == '-' {
-				tokens = append(tokens, Token{TokenComment, "--"})
-				i += 2
+				start := i
+				if i+2 < len(input) && input[i+2] == '[' {
+					j := i + 3
+					equalCount := 0
+					for j < len(input) && input[j] == '=' {
+						equalCount++
+						j++
+					}
+					if j < len(input) && input[j] == '[' {
+						i = j
+						for i < len(input) {
+							if input[i] == ']' {
+								count := 0
+								for i+1 < len(input) && input[i+1] == '=' {
+									count++
+									i++
+								}
+								if count == equalCount && i+1 < len(input) && input[i+1] == ']' {
+									i += 2
+									break
+								}
+							}
+							i++
+						}
+					}
+				}
+				if i >= len(input) {
+					tokens = append(tokens, Token{TokenError, input[start:i]})
+				} else if i > start {
+					tokens = append(tokens, Token{TokenComment, input[start:i]})
+				} else {
+					for i+1 < len(input) && input[i+1] != '\n' {
+						i++
+					}
+					tokens = append(tokens, Token{TokenComment, input[start:i]})
+				}
 				continue
 			}
 			tokens = append(tokens, Token{TokenMinus, string(ch)})
