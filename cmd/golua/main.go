@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/urfave/cli/v2"
+
+	"lua-interpreter/internal/lexer"
 )
 
 func main() {
@@ -17,11 +19,15 @@ func main() {
 				return cli.Exit("Provide path to lua file", 1)
 			}
 			path := c.Args().Get(0)
-			_, err := os.ReadFile(path)
+			buf, err := os.ReadFile(path)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error reading file: %s", err.Error()), 1)
 			}
+			tokens := lexer.Lex(string(buf))
 
+			for _, token := range tokens {
+				fmt.Printf("Token: %s, Type: %s\n", token.Value, token.Type)
+			}
 			return nil
 		},
 	}
