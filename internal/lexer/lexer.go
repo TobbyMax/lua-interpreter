@@ -245,13 +245,31 @@ type Token struct {
 	Value string
 }
 
-func Lex(input string) []Token {
-	var tokens []Token
-	i := 0
-	for i < len(input) {
+type Lexer struct {
+	input    string
+	position int
+}
+
+func NewLexer(input string) *Lexer {
+	return &Lexer{
+		input:    input,
+		position: 0,
+	}
+}
+
+func (l *Lexer) HasNext() bool {
+	return l.position < len(l.input)
+}
+
+func (l *Lexer) NextToken() Token {
+	var token Token
+	input := l.input
+	i := l.position
+	if i < len(input) {
 		ch := input[i]
 		switch {
 		case unicode.IsSpace(rune(ch)):
+			token = Token{TokenSpace, string(ch)}
 			i++
 		case strings.ContainsRune(IdentifierStartSymbols, rune(ch)):
 			start := i
@@ -260,9 +278,9 @@ func Lex(input string) []Token {
 			}
 			word := input[start:i]
 			if _, ok := keywords[word]; ok {
-				tokens = append(tokens, Token{keywords[word], word})
+				token = Token{keywords[word], word}
 			} else {
-				tokens = append(tokens, Token{TokenIdentifier, word})
+				token = Token{TokenIdentifier, word}
 			}
 		case unicode.IsDigit(rune(ch)):
 			start := i
@@ -292,9 +310,9 @@ func Lex(input string) []Token {
 				}
 			}
 			if isFailed {
-				tokens = append(tokens, Token{TokenError, input[start:i]})
+				token = Token{TokenError, input[start:i]}
 			} else {
-				tokens = append(tokens, Token{TokenNumeral, input[start:i]})
+				token = Token{TokenNumeral, input[start:i]}
 			}
 		case ch == '"':
 			start := i
@@ -309,9 +327,9 @@ func Lex(input string) []Token {
 			}
 			if i < len(input) {
 				i++
-				tokens = append(tokens, Token{TokenLiteralString, input[start:i]})
+				token = Token{TokenLiteralString, input[start:i]}
 			} else {
-				tokens = append(tokens, Token{TokenError, input[start:i]})
+				token = Token{TokenError, input[start:i]}
 			}
 		case ch == '\'':
 			start := i
@@ -324,12 +342,12 @@ func Lex(input string) []Token {
 			}
 			if i < len(input) {
 				i++
-				tokens = append(tokens, Token{TokenLiteralString, input[start:i]})
+				token = Token{TokenLiteralString, input[start:i]}
 			} else {
-				tokens = append(tokens, Token{TokenError, input[start:i]})
+				token = Token{TokenError, input[start:i]}
 			}
 		case ch == '+':
-			tokens = append(tokens, Token{TokenPlus, string(ch)})
+			token = Token{TokenPlus, string(ch)}
 			i++
 		case ch == '-':
 			if i+1 < len(input) && input[i+1] == '-' {
@@ -360,111 +378,100 @@ func Lex(input string) []Token {
 					}
 				}
 				if i >= len(input) {
-					tokens = append(tokens, Token{TokenError, input[start:i]})
+					token = Token{TokenError, input[start:i]}
 				} else if i > start {
-					tokens = append(tokens, Token{TokenComment, input[start:i]})
+					token = Token{TokenComment, input[start:i]}
 				} else {
 					for i+1 < len(input) && input[i+1] != '\n' {
 						i++
 					}
-					tokens = append(tokens, Token{TokenComment, input[start:i]})
+					token = Token{TokenComment, input[start:i]}
 				}
-				continue
 			}
-			tokens = append(tokens, Token{TokenMinus, string(ch)})
+			token = Token{TokenMinus, string(ch)}
 			i++
 		case ch == '*':
-			tokens = append(tokens, Token{TokenMult, string(ch)})
+			token = Token{TokenMult, string(ch)}
 			i++
 		case ch == '%':
-			tokens = append(tokens, Token{TokenMod, string(ch)})
+			token = Token{TokenMod, string(ch)}
 			i++
 		case ch == '^':
-			tokens = append(tokens, Token{TokenPower, string(ch)})
+			token = Token{TokenPower, string(ch)}
 			i++
 		case ch == '#':
-			tokens = append(tokens, Token{TokenHash, string(ch)})
+			token = Token{TokenHash, string(ch)}
 			i++
 		case ch == '&':
-			tokens = append(tokens, Token{TokenBinAnd, string(ch)})
+			token = Token{TokenBinAnd, string(ch)}
 			i++
 		case ch == '|':
-			tokens = append(tokens, Token{TokenBinOr, string(ch)})
+			token = Token{TokenBinOr, string(ch)}
 			i++
 		case ch == '/':
 			if i+1 < len(input) && input[i+1] == '/' {
-				tokens = append(tokens, Token{TokenIntDiv, "//"})
+				token = Token{TokenIntDiv, "//"}
 				i += 2
-				continue
 			}
-			tokens = append(tokens, Token{TokenDiv, string(ch)})
+			token = Token{TokenDiv, string(ch)}
 			i++
 		case ch == '=':
 			if i+1 < len(input) && input[i+1] == '=' {
-				tokens = append(tokens, Token{TokenEqual, "=="})
+				token = Token{TokenEqual, "=="}
 				i += 2
-				continue
 			}
-			tokens = append(tokens, Token{TokenAssign, string(ch)})
+			token = Token{TokenAssign, string(ch)}
 			i++
 		case ch == '<':
 			if i+1 < len(input) && input[i+1] == '=' {
-				tokens = append(tokens, Token{TokenLessEqual, "<="})
+				token = Token{TokenLessEqual, "<="}
 				i += 2
-				continue
 			}
 			if i+1 < len(input) && input[i+1] == '<' {
-				tokens = append(tokens, Token{TokenShiftLeft, "<<"})
+				token = Token{TokenShiftLeft, "<<"}
 				i += 2
-				continue
 			}
-			tokens = append(tokens, Token{TokenLess, string(ch)})
+			token = Token{TokenLess, string(ch)}
 			i++
 		case ch == '>':
 			if i+1 < len(input) && input[i+1] == '=' {
-				tokens = append(tokens, Token{TokenMoreEqual, ">="})
+				token = Token{TokenMoreEqual, ">="}
 				i += 2
-				continue
 			}
 			if i+1 < len(input) && input[i+1] == '>' {
-				tokens = append(tokens, Token{TokenShiftRight, ">>"})
+				token = Token{TokenShiftRight, ">>"}
 				i += 2
-				continue
 			}
-			tokens = append(tokens, Token{TokenMore, string(ch)})
+			token = Token{TokenMore, string(ch)}
 			i++
 		case ch == '~':
 			if i+1 < len(input) && input[i+1] == '=' {
-				tokens = append(tokens, Token{TokenNotEqual, "~="})
+				token = Token{TokenNotEqual, "~="}
 				i += 2
-				continue
 			}
-			tokens = append(tokens, Token{TokenWave, string(ch)})
+			token = Token{TokenWave, string(ch)}
 			i++
 		case ch == ':':
 			if i+1 < len(input) && input[i+1] == ':' {
-				tokens = append(tokens, Token{TokenDoubleColon, "::"})
+				token = Token{TokenDoubleColon, "::"}
 				i += 2
-				continue
 			}
-			tokens = append(tokens, Token{TokenColon, string(ch)})
+			token = Token{TokenColon, string(ch)}
 			i++
 		case ch == ';':
-			tokens = append(tokens, Token{TokenSemiColon, string(ch)})
+			token = Token{TokenSemiColon, string(ch)}
 			i++
 		case ch == ',':
-			tokens = append(tokens, Token{TokenComma, string(ch)})
+			token = Token{TokenComma, string(ch)}
 			i++
 		case ch == '.':
 			if i+1 < len(input) && input[i+1] == '.' {
 				if i+2 < len(input) && input[i+2] == '.' {
-					tokens = append(tokens, Token{TokenTripleDot, "..."})
+					token = Token{TokenTripleDot, "..."}
 					i += 3
-					continue
 				}
-				tokens = append(tokens, Token{TokenDoubleDot, ".."})
+				token = Token{TokenDoubleDot, ".."}
 				i += 2
-				continue
 			}
 			if i+1 < len(input) && unicode.IsDigit(rune(input[i+1])) {
 				start := i
@@ -472,34 +479,35 @@ func Lex(input string) []Token {
 				for i < len(input) && unicode.IsDigit(rune(input[i])) {
 					i++
 				}
-				tokens = append(tokens, Token{TokenNumeral, input[start:i]})
-				continue
+				token = Token{TokenNumeral, input[start:i]}
 			}
-			tokens = append(tokens, Token{TokenDot, string(ch)})
+			token = Token{TokenDot, string(ch)}
 			i++
 		case ch == '(':
-			tokens = append(tokens, Token{TokenLeftParen, string(ch)})
+			token = Token{TokenLeftParen, string(ch)}
 			i++
 		case ch == ')':
-			tokens = append(tokens, Token{TokenRightParen, string(ch)})
+			token = Token{TokenRightParen, string(ch)}
 			i++
 		case ch == '{':
-			tokens = append(tokens, Token{TokenLeftBrace, string(ch)})
+			token = Token{TokenLeftBrace, string(ch)}
 			i++
 		case ch == '}':
-			tokens = append(tokens, Token{TokenRightBrace, string(ch)})
+			token = Token{TokenRightBrace, string(ch)}
 			i++
 		case ch == '[':
-			tokens = append(tokens, Token{TokenLeftBracket, string(ch)})
+			token = Token{TokenLeftBracket, string(ch)}
 			i++
 		case ch == ']':
-			tokens = append(tokens, Token{TokenRightBracket, string(ch)})
+			token = Token{TokenRightBracket, string(ch)}
 			i++
 		default:
-			tokens = append(tokens, Token{TokenError, string(ch)})
+			token = Token{TokenError, string(ch)}
 			i++
 		}
+	} else {
+		token = Token{TokenEOF, ""}
 	}
-	tokens = append(tokens, Token{TokenEOF, ""})
-	return tokens
+	l.position = i
+	return token
 }
