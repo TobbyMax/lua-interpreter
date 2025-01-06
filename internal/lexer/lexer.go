@@ -11,7 +11,6 @@ type TokenType int
 const (
 	TokenEOF TokenType = iota
 	// Operators and delimiters
-	TokenSpace
 	TokenPlus
 	TokenMinus
 	TokenMult
@@ -88,8 +87,6 @@ func (t TokenType) String() string {
 	switch t {
 	case TokenEOF:
 		return "EOF"
-	case TokenSpace:
-		return "SPACE"
 	case TokenPlus:
 		return "+"
 	case TokenMinus:
@@ -265,12 +262,12 @@ func (l *Lexer) NextToken() Token {
 	var token Token
 	input := l.input
 	i := l.position
+	for i < len(input) && unicode.IsSpace(rune(input[i])) {
+		i++
+	}
 	if i < len(input) {
 		ch := input[i]
 		switch {
-		case unicode.IsSpace(rune(ch)):
-			token = Token{TokenSpace, string(ch)}
-			i++
 		case strings.ContainsRune(IdentifierStartSymbols, rune(ch)):
 			start := i
 			for i < len(input) && strings.ContainsRune(IdentifierSymbols, rune(input[i])) {
