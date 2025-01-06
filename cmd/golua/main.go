@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"lua-interpreter/internal/lexer"
+	"lua-interpreter/internal/parser"
 )
 
 func main() {
@@ -24,26 +25,29 @@ func main() {
 				return cli.Exit(fmt.Sprintf("Error reading file: %s", err.Error()), -2)
 			}
 			l := lexer.NewLexer(string(buf))
-			var tokens []lexer.Token
-			for l.HasNext() {
-				token := l.NextToken()
-				tokens = append(tokens, token)
-			}
-			if l.NextToken().Type != lexer.TokenEOF {
-				return cli.Exit("Lexer did not return EOF token", -3)
-			}
-			// Print tokens for debugging
-			for _, token := range tokens {
-				fmt.Printf("Token: %s, Type: %s\n", token.Value, token.Type)
-			}
-			// Parse tokens
-			//node, err := parser.Parse(tokens)
-			//if err != nil {
-			//	return cli.Exit(fmt.Sprintf("Error parsing tokens: %s", err.Error()), -4)
+			//var tokens []lexer.Token
+			//for l.HasNext() {
+			//	token := l.NextToken()
+			//	tokens = append(tokens, token)
 			//}
-			// Print AST for debugging
-			//fmt.Printf("AST: %+v\n", node)
+			//// Print tokens for debugging
+			//for _, token := range tokens {
+			//	fmt.Printf("Token: %s, Type: %s\n", token.Value, token.Type)
+			//}p
 
+			p := parser.NewParser(l)
+			block, err := p.Parse()
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("Error parsing file: %s", err.Error()), -3)
+			}
+			// for debugging
+			fmt.Printf("Parsed Block: %+v\n", block)
+			for _, statement := range block.Statements {
+				fmt.Printf("Statement: %+v\n", statement)
+				if stmt, ok := statement.(*parser.BinaryOperatorExpression); ok {
+					fmt.Printf("Binary Operator: %s, Left: %s, Right: %s\n", stmt.Operator.Value, stmt.Left, stmt.Right)
+				}
+			}
 			return nil
 		},
 	}

@@ -1,149 +1,231 @@
 package parser
 
 import (
-	"errors"
-	"fmt"
-	"strconv"
-
 	"lua-interpreter/internal/lexer"
 )
 
-type Node interface {
-	Eval(env *Env) error
-}
+type (
+	StatementType int
 
-type NumberNode struct {
-	Value float64
-}
-
-func (n *NumberNode) Eval(env *Env) error {
-	env.Push(n.Value)
-	return nil
-}
-
-type VarNode struct {
-	Name string
-}
-
-func (n *VarNode) Eval(env *Env) error {
-	val, ok := env.vars[n.Name]
-	if !ok {
-		return errors.New("undefined variable: " + n.Name)
+	NilExpression     struct{}
+	BooleanExpression struct {
+		Value bool
 	}
-	env.Push(val)
-	return nil
+	NumeralExpression struct {
+		Value float64
+	}
+	LiteralString struct {
+		Value string
+	}
+	VarArgExpression struct{}
+	// ParameterList
+	// parlist ::= namelist [‘,’ ‘...’] | ‘...’
+	ParameterList struct {
+		Names    []string
+		IsVarArg bool
+	}
+	// FunctionDefExpression
+	// functiondef ::= function funcbody
+	// funcbody ::= ‘(’ [parlist] ‘)’ block end
+	FunctionDefExpression struct {
+		ParameterList ParameterList
+		Block         Block
+	}
+
+	// ExpressionList
+	// explist ::= exp {‘,’ exp}
+	ExpressionList struct {
+		Expressions []Expression
+	}
+	// Args [ExpressionList | TableConstructorExpression | LiteralString]
+	// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
+	Args interface{}
+	Arg  interface{}
+	// FunctionCall
+	// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+	FunctionCall struct {
+		PrefixExp PrefixExpression
+		Name      string
+		Args      Args
+	}
+	// PrefixExpression
+	// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
+	PrefixExpression interface{}
+	// ExpToExpField
+	// ‘[’ exp ‘]’ ‘=’ exp
+	ExpToExpField struct {
+		Key   Expression
+		Value Expression
+	}
+	// NameField
+	// Name ‘=’ exp
+	NameField struct {
+		Name  string
+		Value Expression
+	}
+	// ExpressionField
+	// exp
+	ExpressionField struct {
+		Value Expression
+	}
+	// Field
+	// field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
+	Field interface{}
+	// TableConstructorExpression
+	// tableconstructor ::= ‘{’ [fieldlist] ‘}’
+	TableConstructorExpression struct {
+		Fields []Field
+	}
+	UnaryOperatorExpression struct {
+		Operator   lexer.Token
+		Expression Expression
+	}
+	BinaryOperatorExpression struct {
+		Operator lexer.Token
+		Left     Expression
+		Right    Expression
+	}
+	// Expression
+	// exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
+	//       | functiondef | prefixexp | tableconstructor | opunary exp
+	//       | exp binop exp
+	Expression interface{}
+
+	NameVar struct {
+		Name string
+	}
+	IndexedVar struct {
+		PrefixExp PrefixExpression
+		Exp       Expression
+	}
+	MemberVar struct {
+		PrefixExp PrefixExpression
+		Name      string
+	}
+	// Var
+	// var ::=  Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
+	Var interface{}
+	// Statement
+	// stat ::=  ‘;’
+	//       |  varlist ‘=’ explist
+	//       |  functioncall
+	//       |  label
+	//       |  break
+	//       |  goto Name
+	//       |  do block end
+	//       |  while exp do block end
+	//       |  repeat block until exp
+	//       |  if exp then block {elseif exp then block} [else block] end
+	//       |  for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
+	//       |  for namelist in explist do block end
+	//       |  function funcname funcbody
+	//       |  local function Name funcbody
+	//       |  local namelist [‘=’ explist]
+	Statement interface{}
+	// ReturnStatement ::= return [explist] [‘;’]
+	// retstat ::= return [explist] [‘;’]
+	ReturnStatement struct {
+		Expressions []Expression
+	}
+	// Block
+	// block ::= { stat } [ retstat ]
+	Block struct {
+		Statements      []Statement
+		ReturnStatement *ReturnStatement
+	}
+)
+
+// stat ::=  ‘;’
+//       |  varlist ‘=’ explist
+//       |  functioncall
+//       |  label
+//       |  break
+//       |  goto Name
+//       |  do block end
+//       |  while exp do block end
+//       |  repeat block until exp
+//       |  if exp then block {elseif exp then block} [else block] end
+//       |  for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
+//       |  for namelist in explist do block end
+//       |  function funcname funcbody
+//       |  local function Name funcbody
+//       |  local namelist [‘=’ explist]
+//var parseFunctionMap = map[lexer.TokenType]func(p *Parser) Statement{
+//	lexer.TokenSemiColon: parseEmptyStatement,
+//	lexer.
+//}
+
+type Parser struct {
+	lexer        *lexer.Lexer
+	currentToken lexer.Token
 }
 
-type AssignNode struct {
-	Name string
-	Expr Node
+func NewParser(lexer *lexer.Lexer) *Parser {
+	return &Parser{
+		lexer: lexer,
+	}
 }
 
-func (n *AssignNode) Eval(env *Env) error {
-	err := n.Expr.Eval(env)
+func (p *Parser) Parse() (Block, error) {
+	return p.parseBlock()
+}
+
+func (p *Parser) parseBlock() (b Block, err error) {
+	b.Statements, err = p.parseStatements()
 	if err != nil {
-		return err
+		return Block{}, err
 	}
-	val := env.Pop()
-	env.vars[n.Name] = val
-	return nil
+	b.ReturnStatement = p.parseReturnStatement()
+	return b, nil
 }
 
-type PrintNode struct {
-	Expr Node
+func (p *Parser) parseStatements() ([]Statement, error) {
+	var statements []Statement
+	p.currentToken = p.lexer.NextToken()
+	for p.currentToken.Type != lexer.TokenEOF && p.currentToken.Type != lexer.TokenKeywordReturn {
+		stat, err := p.parseStatement()
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, stat)
+	}
+	return statements, nil
 }
 
-func (n *PrintNode) Eval(env *Env) error {
-	err := n.Expr.Eval(env)
+func (p *Parser) parseStatement() (Statement, error) {
+	return p.parseExpression()
+}
+
+func (p *Parser) parseReturnStatement() *ReturnStatement {
+	if p.currentToken.Type != lexer.TokenKeywordReturn {
+		return nil
+	}
+	p.currentToken = p.lexer.NextToken()
+	expressions, err := p.parseExpressionList()
 	if err != nil {
-		return err
+		return nil
 	}
-	fmt.Println(env.Pop())
-	return nil
+	return &ReturnStatement{
+		Expressions: expressions,
+	}
 }
 
-type BinOpNode struct {
-	Left  Node
-	Op    string
-	Right Node
-}
-
-func (n *BinOpNode) Eval(env *Env) error {
-	if err := n.Left.Eval(env); err != nil {
-		return err
+func (p *Parser) parseExpressionList() (exps []Expression, err error) {
+	exp, err := p.parseExpression()
+	if err != nil {
+		return nil, err
 	}
-	left := env.Pop()
-	if err := n.Right.Eval(env); err != nil {
-		return err
+	if exp == nil {
+		return nil, nil
 	}
-	right := env.Pop()
-
-	var result float64
-	switch n.Op {
-	case "+":
-		result = left + right
-	case "-":
-		result = left - right
-	case "*":
-		result = left * right
-	case "/":
-		result = left / right
-	}
-	env.Push(result)
-	return nil
-}
-
-func Parse(tokens []lexer.Token) (Node, error) {
-	pos := 0
-	next := func() lexer.Token {
-		if pos >= len(tokens) {
-			return lexer.Token{lexer.TokenEOF, ""}
+	exps = append(exps, exp)
+	for p.currentToken.Type == lexer.TokenComma {
+		p.currentToken = p.lexer.NextToken()
+		exp, err = p.parseExpression()
+		if err != nil {
+			return nil, err
 		}
-		tok := tokens[pos]
-		pos++
-		return tok
+		exps = append(exps, exp)
 	}
-	peek := func() lexer.Token {
-		if pos >= len(tokens) {
-			return lexer.Token{lexer.TokenEOF, ""}
-		}
-		return tokens[pos]
-	}
-
-	parseExpr := func() (Node, error) {
-		tok := next()
-		switch tok.Type {
-		case lexer.TokenNumber:
-			val, _ := strconv.ParseFloat(tok.Value, 64)
-			return &NumberNode{val}, nil
-		case lexer.TokenIdent:
-			return &VarNode{tok.Value}, nil
-		default:
-			return nil, errors.New("unexpected token: " + tok.Value)
-		}
-	}
-
-	parse := func() (Node, error) {
-		tok := next()
-		switch tok.Type {
-		case lexer.TokenIdent:
-			if peek().Type == lexer.TokenAssign {
-				next() // consume '='
-				expr, err := parseExpr()
-				if err != nil {
-					return nil, err
-				}
-				return &AssignNode{tok.Value, expr}, nil
-			}
-		case lexer.TokenPrint:
-			expr, err := parseExpr()
-			if err != nil {
-				return nil, err
-			}
-			return &PrintNode{expr}, nil
-		}
-		return nil, errors.New("unknown statement")
-	}
-
-	return parse()
+	return exps, nil
 }

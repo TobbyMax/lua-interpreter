@@ -21,7 +21,7 @@ const (
 	TokenHash
 	TokenBinAnd
 	TokenBinOr
-	TokenWave
+	TokenTilde
 	TokenShiftLeft
 	TokenShiftRight
 	TokenIntDiv
@@ -108,7 +108,7 @@ func (t TokenType) String() string {
 		return "&"
 	case TokenBinOr:
 		return "|"
-	case TokenWave:
+	case TokenTilde:
 		return "~"
 	case TokenShiftLeft:
 		return "<<"
@@ -449,7 +449,7 @@ func (l *Lexer) NextToken() Token {
 				token = Token{TokenNotEqual, "~="}
 				i += 2
 			}
-			token = Token{TokenWave, string(ch)}
+			token = Token{TokenTilde, string(ch)}
 			i++
 		case ch == ':':
 			if i+1 < len(input) && input[i+1] == ':' {
