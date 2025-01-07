@@ -1,4 +1,4 @@
-s = 19;
+s, a = 19, 20
 local local_1 = 0x.02
 local local_2 = .02
 if s == 19 then

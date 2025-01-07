@@ -5,8 +5,6 @@ import (
 )
 
 type (
-	StatementType int
-
 	NilExpression     struct{}
 	BooleanExpression struct {
 		Value bool
@@ -24,14 +22,6 @@ type (
 		Names    []string
 		IsVarArg bool
 	}
-	// FunctionDefExpression
-	// functiondef ::= function funcbody
-	// funcbody ::= ‘(’ [parlist] ‘)’ block end
-	FunctionDefExpression struct {
-		ParameterList ParameterList
-		Block         Block
-	}
-
 	// ExpressionList
 	// explist ::= exp {‘,’ exp}
 	ExpressionList struct {
@@ -91,37 +81,6 @@ type (
 	//       | exp binop exp
 	Expression interface{}
 
-	NameVar struct {
-		Name string
-	}
-	IndexedVar struct {
-		PrefixExp PrefixExpression
-		Exp       Expression
-	}
-	MemberVar struct {
-		PrefixExp PrefixExpression
-		Name      string
-	}
-	// Var
-	// var ::=  Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
-	Var interface{}
-	// Statement
-	// stat ::=  ‘;’
-	//       |  varlist ‘=’ explist
-	//       |  functioncall
-	//       |  label
-	//       |  break
-	//       |  goto Name
-	//       |  do block end
-	//       |  while exp do block end
-	//       |  repeat block until exp
-	//       |  if exp then block {elseif exp then block} [else block] end
-	//       |  for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
-	//       |  for namelist in explist do block end
-	//       |  function funcname funcbody
-	//       |  local function Name funcbody
-	//       |  local namelist [‘=’ explist]
-	Statement interface{}
 	// ReturnStatement ::= return [explist] [‘;’]
 	// retstat ::= return [explist] [‘;’]
 	ReturnStatement struct {
@@ -135,21 +94,6 @@ type (
 	}
 )
 
-// stat ::=  ‘;’
-//       |  varlist ‘=’ explist
-//       |  functioncall
-//       |  label
-//       |  break
-//       |  goto Name
-//       |  do block end
-//       |  while exp do block end
-//       |  repeat block until exp
-//       |  if exp then block {elseif exp then block} [else block] end
-//       |  for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
-//       |  for namelist in explist do block end
-//       |  function funcname funcbody
-//       |  local function Name funcbody
-//       |  local namelist [‘=’ explist]
 //var parseFunctionMap = map[lexer.TokenType]func(p *Parser) Statement{
 //	lexer.TokenSemiColon: parseEmptyStatement,
 //	lexer.
@@ -175,7 +119,10 @@ func (p *Parser) parseBlock() (b Block, err error) {
 	if err != nil {
 		return Block{}, err
 	}
-	b.ReturnStatement = p.parseReturnStatement()
+	b.ReturnStatement, err = p.parseReturnStatement()
+	if err != nil {
+		return Block{}, err
+	}
 	return b, nil
 }
 
@@ -192,22 +139,18 @@ func (p *Parser) parseStatements() ([]Statement, error) {
 	return statements, nil
 }
 
-func (p *Parser) parseStatement() (Statement, error) {
-	return p.parseExpression()
-}
-
-func (p *Parser) parseReturnStatement() *ReturnStatement {
+func (p *Parser) parseReturnStatement() (*ReturnStatement, error) {
 	if p.currentToken.Type != lexer.TokenKeywordReturn {
-		return nil
+		return nil, nil
 	}
 	p.currentToken = p.lexer.NextToken()
 	expressions, err := p.parseExpressionList()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	return &ReturnStatement{
 		Expressions: expressions,
-	}
+	}, nil
 }
 
 func (p *Parser) parseExpressionList() (exps []Expression, err error) {

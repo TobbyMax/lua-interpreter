@@ -39,20 +39,20 @@ var (
 func (p *Parser) parseExpression() (Expression, error) {
 	var (
 		// Sets the priority of the operators (power - highest, or - lowest)
-		//parsePower  = p.parseBinaryExp(p.parseExpressionBase, lexer.TokenPower)
-		//parseUnary  = p.parseUnaryExp(parsePower, UnaryOperators...)
-		//parseMulDiv = p.parseBinaryExp(parseUnary, MultiplicativeOperators...)
-		parseAddSub = p.parseBinaryExp(p.parseExpressionBase, AdditiveOperators...)
-		//parseConcat = p.parseBinaryExp(parseAddSub, lexer.TokenDoubleDot)
-		//parseShift  = p.parseBinaryExp(parseConcat, ShiftOperators...)
-		//parseBinAnd = p.parseBinaryExp(parseShift, lexer.TokenBinAnd)
-		//parseBinXor = p.parseBinaryExp(parseBinAnd, lexer.TokenTilde)
-		//parseBinOr  = p.parseBinaryExp(parseBinXor, lexer.TokenBinOr)
-		//parseComp   = p.parseBinaryExp(parseBinOr, ComparisonOperators...)
-		//parseAnd    = p.parseBinaryExp(parseComp, lexer.TokenKeywordAnd)
-		//parseOr     = p.parseBinaryExp(parseAnd, lexer.TokenKeywordOr)
+		parsePower  = p.parseBinaryExp(p.parseExpressionBase, lexer.TokenPower)
+		parseUnary  = p.parseUnaryExp(parsePower, UnaryOperators...)
+		parseMulDiv = p.parseBinaryExp(parseUnary, MultiplicativeOperators...)
+		parseAddSub = p.parseBinaryExp(parseMulDiv, AdditiveOperators...)
+		parseConcat = p.parseBinaryExp(parseAddSub, lexer.TokenDoubleDot)
+		parseShift  = p.parseBinaryExp(parseConcat, ShiftOperators...)
+		parseBinAnd = p.parseBinaryExp(parseShift, lexer.TokenBinAnd)
+		parseBinXor = p.parseBinaryExp(parseBinAnd, lexer.TokenTilde)
+		parseBinOr  = p.parseBinaryExp(parseBinXor, lexer.TokenBinOr)
+		parseComp   = p.parseBinaryExp(parseBinOr, ComparisonOperators...)
+		parseAnd    = p.parseBinaryExp(parseComp, lexer.TokenKeywordAnd)
+		parseOr     = p.parseBinaryExp(parseAnd, lexer.TokenKeywordOr)
 	)
-	return parseAddSub()
+	return parseOr()
 }
 
 // exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
