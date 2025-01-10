@@ -384,9 +384,10 @@ func (l *Lexer) NextToken() Token {
 					}
 					token = Token{TokenComment, input[start:i]}
 				}
+			} else {
+				token = Token{TokenMinus, string(ch)}
+				i++
 			}
-			token = Token{TokenMinus, string(ch)}
-			i++
 		case ch == '*':
 			token = Token{TokenMult, string(ch)}
 			i++
@@ -409,52 +410,59 @@ func (l *Lexer) NextToken() Token {
 			if i+1 < len(input) && input[i+1] == '/' {
 				token = Token{TokenIntDiv, "//"}
 				i += 2
+			} else {
+				token = Token{TokenDiv, string(ch)}
+				i++
 			}
-			token = Token{TokenDiv, string(ch)}
-			i++
 		case ch == '=':
 			if i+1 < len(input) && input[i+1] == '=' {
 				token = Token{TokenEqual, "=="}
 				i += 2
+			} else {
+				token = Token{TokenAssign, string(ch)}
+				i++
 			}
-			token = Token{TokenAssign, string(ch)}
-			i++
 		case ch == '<':
 			if i+1 < len(input) && input[i+1] == '=' {
 				token = Token{TokenLessEqual, "<="}
 				i += 2
-			}
-			if i+1 < len(input) && input[i+1] == '<' {
+			} else if i+1 < len(input) && input[i+1] == '<' {
 				token = Token{TokenShiftLeft, "<<"}
 				i += 2
+				break
+			} else {
+				token = Token{TokenLess, string(ch)}
+				i++
 			}
-			token = Token{TokenLess, string(ch)}
-			i++
 		case ch == '>':
 			if i+1 < len(input) && input[i+1] == '=' {
 				token = Token{TokenMoreEqual, ">="}
 				i += 2
-			}
-			if i+1 < len(input) && input[i+1] == '>' {
+				break
+			} else if i+1 < len(input) && input[i+1] == '>' {
 				token = Token{TokenShiftRight, ">>"}
 				i += 2
+				break
+			} else {
+				token = Token{TokenMore, string(ch)}
+				i++
 			}
-			token = Token{TokenMore, string(ch)}
-			i++
 		case ch == '~':
 			if i+1 < len(input) && input[i+1] == '=' {
 				token = Token{TokenNotEqual, "~="}
 				i += 2
+			} else {
+				token = Token{TokenTilde, string(ch)}
+				i++
 			}
-			token = Token{TokenTilde, string(ch)}
-			i++
 		case ch == ':':
 			if i+1 < len(input) && input[i+1] == ':' {
 				token = Token{TokenDoubleColon, "::"}
 				i += 2
+			} else {
+				token = Token{TokenColon, string(ch)}
+				i++
 			}
-			token = Token{TokenColon, string(ch)}
-			i++
 		case ch == ';':
 			token = Token{TokenSemiColon, string(ch)}
 			i++
@@ -466,20 +474,21 @@ func (l *Lexer) NextToken() Token {
 				if i+2 < len(input) && input[i+2] == '.' {
 					token = Token{TokenTripleDot, "..."}
 					i += 3
+				} else {
+					token = Token{TokenDoubleDot, ".."}
+					i += 2
 				}
-				token = Token{TokenDoubleDot, ".."}
-				i += 2
-			}
-			if i+1 < len(input) && unicode.IsDigit(rune(input[i+1])) {
+			} else if i+1 < len(input) && unicode.IsDigit(rune(input[i+1])) {
 				start := i
 				i++
 				for i < len(input) && unicode.IsDigit(rune(input[i])) {
 					i++
 				}
 				token = Token{TokenNumeral, input[start:i]}
+			} else {
+				token = Token{TokenDot, string(ch)}
+				i++
 			}
-			token = Token{TokenDot, string(ch)}
-			i++
 		case ch == '(':
 			token = Token{TokenLeftParen, string(ch)}
 			i++
