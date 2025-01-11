@@ -94,11 +94,6 @@ type (
 	}
 )
 
-//var parseFunctionMap = map[lexer.TokenType]func(p *Parser) Statement{
-//	lexer.TokenSemiColon: parseEmptyStatement,
-//	lexer.
-//}
-
 type Parser struct {
 	lexer        *lexer.Lexer
 	currentToken lexer.Token
@@ -111,6 +106,7 @@ func NewParser(lexer *lexer.Lexer) *Parser {
 }
 
 func (p *Parser) Parse() (Block, error) {
+	p.currentToken = p.lexer.NextToken()
 	return p.parseBlock()
 }
 
@@ -128,8 +124,9 @@ func (p *Parser) parseBlock() (b Block, err error) {
 
 func (p *Parser) parseStatements() ([]Statement, error) {
 	var statements []Statement
-	p.currentToken = p.lexer.NextToken()
-	for p.currentToken.Type != lexer.TokenEOF && p.currentToken.Type != lexer.TokenKeywordReturn {
+	for p.currentToken.Type != lexer.TokenEOF && p.currentToken.Type != lexer.TokenKeywordReturn &&
+		p.currentToken.Type != lexer.TokenKeywordEnd && p.currentToken.Type != lexer.TokenKeywordElse &&
+		p.currentToken.Type != lexer.TokenKeywordElseIf && p.currentToken.Type != lexer.TokenKeywordUntil {
 		stat, err := p.parseStatement()
 		if err != nil {
 			return nil, err

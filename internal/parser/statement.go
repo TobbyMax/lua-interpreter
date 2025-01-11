@@ -41,55 +41,12 @@ type (
 	Do struct {
 		Block Block
 	}
-	While struct {
-		Exp   Expression
-		Block Block
-	}
-	Repeat struct {
-		Block Block
-		Exp   Expression
-	}
-	If struct {
-		Exps   []Expression
-		Blocks []Block
-	}
-	For struct {
-		Name  string
-		Init  Expression
-		Limit Expression
-		Step  *Expression
-		Block Block
-	}
-	ForIn struct {
-		Names []string
-		Exps  []Expression
-		Block Block
-	}
-	// FunctionBody
-	// funcbody ::= ‘(’ [parlist] ‘)’ block end
-	FunctionBody struct {
-		ParameterList ParameterList
-		Block         Block
-	}
-	// LocalFunctionDefinition
-	// functiondef ::= function funcbody
-	LocalFunctionDefinition struct {
+	// LocalFunction
+	// local function Name funcbody
+	LocalFunction struct {
+		Name         string
 		FunctionBody FunctionBody
 	}
-	// FunctionName
-	// funcname ::= Name {‘.’ Name} [‘:’ Name]
-	FunctionName struct {
-		FirstName string
-		Names     []string
-		LastName  string
-	}
-	// FunctionDefinition
-	// function funcname funcbody
-	FunctionDefinition struct {
-		FunctionName FunctionName
-		FuncBody     FunctionBody
-	}
-
 	// Statement [LocalVarDeclaration | FunctionCall | Label | Break | Goto | Do | While | Repeat | If | ForNum | ForIn | FunctionDefinition | LocalFunctionDefExpression | LocalAssignment]
 	// stat ::=  ‘;’
 	//	|  varlist ‘=’ explist
@@ -118,163 +75,28 @@ func (p *Parser) parseStatement() (Statement, error) {
 		p.currentToken = p.lexer.NextToken()
 		return &Break{}, nil
 	case lexer.TokenKeywordGoTo:
+		p.currentToken = p.lexer.NextToken()
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
 		return &Goto{Name: name}, nil
 	case lexer.TokenKeywordDo:
-		p.currentToken = p.lexer.NextToken()
-		block, err := p.parseBlock()
-		if err != nil {
-			return nil, err
-		}
-		if p.currentToken.Type != lexer.TokenKeywordEnd {
-			return nil, errors.New("missing 'end' keyword")
-		}
-		p.currentToken = p.lexer.NextToken()
-		return &Do{Block: block}, nil
+		return p.parseDoStatement()
 	case lexer.TokenKeywordWhile:
 		return p.parseWhileStatement()
 	case lexer.TokenKeywordRepeat:
 		return p.parseRepeatStatement()
 	case lexer.TokenKeywordIf:
-		p.currentToken = p.lexer.NextToken()
-		var (
-			exps   []Expression
-			blocks []Block
-		)
-		for {
-			exp, err := p.parseExpression()
-			if err != nil {
-				return nil, err
-			}
-			if exp == nil {
-				return nil, errors.New("missing expression")
-			}
-			exps = append(exps, exp)
-			if p.currentToken.Type != lexer.TokenKeywordThen {
-				return nil, errors.New("missing 'then' keyword")
-			}
-			p.currentToken = p.lexer.NextToken()
-			block, err := p.parseBlock()
-			if err != nil {
-				return nil, err
-			}
-			blocks = append(blocks, block)
-			if p.currentToken.Type == lexer.TokenKeywordElseIf {
-				p.currentToken = p.lexer.NextToken()
-				continue
-			} else if p.currentToken.Type == lexer.TokenKeywordElse {
-				p.currentToken = p.lexer.NextToken()
-				break
-			} else if p.currentToken.Type == lexer.TokenKeywordEnd {
-				p.currentToken = p.lexer.NextToken()
-				break
-			} else {
-				return nil, errors.New("missing 'elseif', 'else' or 'end' keyword")
-			}
-		}
-		return &If{Exps: exps, Blocks: blocks}, nil
+		return p.parseIfStatement()
 	case lexer.TokenKeywordFor:
-		p.currentToken = p.lexer.NextToken()
-		if p.currentToken.Type != lexer.TokenIdentifier {
-			return nil, errors.New("missing identifier")
-		}
-		name := p.currentToken.Value
-		// TODO: add for-in support
-		p.currentToken = p.lexer.NextToken()
-		if p.currentToken.Type != lexer.TokenEqual {
-			return nil, errors.New("missing '='")
-		}
-		p.currentToken = p.lexer.NextToken()
-		init, err := p.parseExpression()
-		if err != nil {
-			return nil, err
-		}
-		if p.currentToken.Type != lexer.TokenComma {
-			return nil, errors.New("missing ','")
-		}
-		p.currentToken = p.lexer.NextToken()
-		limit, err := p.parseExpression()
-		if err != nil {
-			return nil, err
-		}
-		var step *Expression
-		if p.currentToken.Type == lexer.TokenComma {
-			p.currentToken = p.lexer.NextToken()
-			stepExp, err := p.parseExpression()
-			if err != nil {
-				return nil, err
-			}
-			step = &stepExp
-		}
-		if p.currentToken.Type != lexer.TokenKeywordDo {
-			return nil, errors.New("missing 'do' keyword")
-		}
-		p.currentToken = p.lexer.NextToken()
-		block, err := p.parseBlock()
-		if err != nil {
-			return nil, err
-		}
-		if p.currentToken.Type != lexer.TokenKeywordEnd {
-			return nil, errors.New("missing 'end' keyword")
-		}
-		p.currentToken = p.lexer.NextToken()
-		return &For{Name: name, Init: init, Limit: limit, Step: step, Block: block}, nil
+		return p.parseForStatement()
 	case lexer.TokenKeywordFunction:
-		return p.parseFunctionDefinition()
+		return p.parseFunction()
 	case lexer.TokenKeywordLocal:
-		p.currentToken = p.lexer.NextToken()
-		switch p.currentToken.Type {
-		case lexer.TokenKeywordFunction:
-			p.currentToken = p.lexer.NextToken()
-			body, err := p.parseFunctionBody()
-			if err != nil {
-				return nil, err
-			}
-			return &LocalFunctionDefinition{FunctionBody: body}, nil
-		case lexer.TokenIdentifier:
-			names, err := p.parseNameList()
-			if err != nil {
-				return nil, err
-			}
-			if p.currentToken.Type != lexer.TokenEqual {
-				return &LocalVarDeclaration{Vars: names}, nil
-			}
-			p.currentToken = p.lexer.NextToken()
-			exps, err := p.parseExpressionList()
-			if err != nil {
-				return nil, err
-			}
-			return &LocalVarDeclaration{Vars: names, Exps: exps}, nil
-		default:
-			return nil, errors.New("missing identifier or function")
-		}
+		return p.parseLocalDeclaration()
 	case lexer.TokenDoubleColon:
-		p.currentToken = p.lexer.NextToken()
-		if p.currentToken.Type != lexer.TokenIdentifier {
-			return nil, errors.New("missing identifier")
-		}
-		name := p.currentToken.Value
-		p.currentToken = p.lexer.NextToken()
-		if p.currentToken.Type != lexer.TokenDoubleColon {
-			return nil, errors.New("missing '::'")
-		}
-		p.currentToken = p.lexer.NextToken()
-		return &Label{Name: name}, nil
+		return p.parseLabel()
 	case lexer.TokenIdentifier:
-		vars, err := p.parseVarList()
-		if err != nil {
-			return nil, err
-		}
-		if p.currentToken.Type != lexer.TokenEqual {
-			return nil, errors.New("missing '='")
-		}
-		p.currentToken = p.lexer.NextToken()
-		exps, err := p.parseExpressionList()
-		if err != nil {
-			return nil, err
-		}
-		return &Assignment{Vars: vars, Exps: exps}, nil
+		return p.parseAssignment()
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
 	}
@@ -407,15 +229,71 @@ func (p *Parser) parseParameterList() (ParameterList, error) {
 	return ParameterList{Names: names, IsVarArg: isVararg}, nil
 }
 
-func (p *Parser) parseWhileStatement() (*While, error) {
+func (p *Parser) parseLabel() (*Label, error) {
 	p.currentToken = p.lexer.NextToken()
-	exp, err := p.parseExpression()
+	if p.currentToken.Type != lexer.TokenIdentifier {
+		return nil, errors.New("missing identifier")
+	}
+	name := p.currentToken.Value
+	p.currentToken = p.lexer.NextToken()
+	if p.currentToken.Type != lexer.TokenDoubleColon {
+		return nil, errors.New("missing '::'")
+	}
+	p.currentToken = p.lexer.NextToken()
+	return &Label{Name: name}, nil
+}
+
+func (p *Parser) parseAssignment() (*Assignment, error) {
+	vars, err := p.parseVarList()
 	if err != nil {
 		return nil, err
 	}
-	if p.currentToken.Type != lexer.TokenKeywordDo {
-		return nil, errors.New("missing 'do' keyword")
+	if p.currentToken.Type != lexer.TokenAssign {
+		return nil, errors.New("missing '='")
 	}
+	p.currentToken = p.lexer.NextToken()
+	exps, err := p.parseExpressionList()
+	if err != nil {
+		return nil, err
+	}
+	return &Assignment{Vars: vars, Exps: exps}, nil
+}
+
+func (p *Parser) parseLocalDeclaration() (Statement, error) {
+	p.currentToken = p.lexer.NextToken()
+	switch p.currentToken.Type {
+	case lexer.TokenKeywordFunction:
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type != lexer.TokenIdentifier {
+			return nil, errors.New("missing Name for local function")
+		}
+		name := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		body, err := p.parseFunctionBody()
+		if err != nil {
+			return nil, err
+		}
+		return &LocalFunction{Name: name, FunctionBody: body}, nil
+	case lexer.TokenIdentifier:
+		names, err := p.parseNameList()
+		if err != nil {
+			return nil, err
+		}
+		if p.currentToken.Type != lexer.TokenAssign {
+			return &LocalVarDeclaration{Vars: names}, nil
+		}
+		p.currentToken = p.lexer.NextToken()
+		exps, err := p.parseExpressionList()
+		if err != nil {
+			return nil, err
+		}
+		return &LocalVarDeclaration{Vars: names, Exps: exps}, nil
+	default:
+		return nil, errors.New("missing identifier or function")
+	}
+}
+
+func (p *Parser) parseDoStatement() (*Do, error) {
 	p.currentToken = p.lexer.NextToken()
 	block, err := p.parseBlock()
 	if err != nil {
@@ -425,22 +303,5 @@ func (p *Parser) parseWhileStatement() (*While, error) {
 		return nil, errors.New("missing 'end' keyword")
 	}
 	p.currentToken = p.lexer.NextToken()
-	return &While{Exp: exp, Block: block}, nil
-}
-
-func (p *Parser) parseRepeatStatement() (*Repeat, error) {
-	p.currentToken = p.lexer.NextToken()
-	block, err := p.parseBlock()
-	if err != nil {
-		return nil, err
-	}
-	if p.currentToken.Type != lexer.TokenKeywordUntil {
-		return nil, errors.New("missing 'until' keyword")
-	}
-	p.currentToken = p.lexer.NextToken()
-	exp, err := p.parseExpression()
-	if err != nil {
-		return nil, err
-	}
-	return &Repeat{Block: block, Exp: exp}, nil
+	return &Do{Block: block}, nil
 }

@@ -33,7 +33,7 @@ func main() {
 			//// Print tokens for debugging
 			//for _, token := range tokens {
 			//	fmt.Printf("Token: %s, Type: %s\n", token.Value, token.Type)
-			//}p
+			//}
 
 			p := parser.NewParser(l)
 			block, err := p.Parse()

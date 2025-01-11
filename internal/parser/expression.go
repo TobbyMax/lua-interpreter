@@ -1,9 +1,18 @@
 package parser
 
 import (
+	"errors"
 	"strconv"
 
 	"lua-interpreter/internal/lexer"
+)
+
+type (
+	// FunctionDefinition
+	// functiondef ::= function funcbody
+	FunctionDefinition struct {
+		FunctionBody FunctionBody
+	}
 )
 
 var (
@@ -33,6 +42,7 @@ var (
 		lexer.TokenMore,
 		lexer.TokenMoreEqual,
 		lexer.TokenEqual,
+		lexer.TokenNotEqual,
 	}
 )
 
@@ -73,6 +83,7 @@ func (p *Parser) parseExpressionBase() (Expression, error) {
 	case lexer.TokenNumeral:
 		str := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
+		// todo: parse hexadecimal numbers
 		num, err := strconv.ParseFloat(str, 64)
 		if err != nil {
 			return nil, err
@@ -85,6 +96,10 @@ func (p *Parser) parseExpressionBase() (Expression, error) {
 	case lexer.TokenTripleDot:
 		p.currentToken = p.lexer.NextToken()
 		return &VarArgExpression{}, nil
+	case lexer.TokenIdentifier:
+		name := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		return &NameVar{Name: name}, nil
 	//case lexer.TokenKeywordFunction:
 	//	p.currentToken = p.lexer.NextToken()
 	//	return p.parseFunctionDef()
@@ -94,7 +109,7 @@ func (p *Parser) parseExpressionBase() (Expression, error) {
 	//case lexer.TokenIdentifier, lexer.TokenLeftParen:
 	//	return p.parsePrefixExpression()
 	default:
-		return nil, nil
+		return nil, errors.New("unexpected token: " + p.currentToken.Type.String())
 	}
 }
 

@@ -6,7 +6,29 @@ import (
 	"lua-interpreter/internal/lexer"
 )
 
-func (p *Parser) parseFunctionDefinition() (*FunctionDefinition, error) {
+type (
+	// FunctionBody
+	// funcbody ::= ‘(’ [parlist] ‘)’ block end
+	FunctionBody struct {
+		ParameterList ParameterList
+		Block         Block
+	}
+	// FunctionName
+	// funcname ::= Name {‘.’ Name} [‘:’ Name]
+	FunctionName struct {
+		FirstName string
+		Names     []string
+		LastName  string
+	}
+	// Function
+	// function funcname funcbody
+	Function struct {
+		FunctionName FunctionName
+		FuncBody     FunctionBody
+	}
+)
+
+func (p *Parser) parseFunction() (*Function, error) {
 	p.currentToken = p.lexer.NextToken()
 	if p.currentToken.Type != lexer.TokenIdentifier {
 		return nil, errors.New("missing identifier")
@@ -19,7 +41,7 @@ func (p *Parser) parseFunctionDefinition() (*FunctionDefinition, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FunctionDefinition{FunctionName: name, FuncBody: body}, nil
+	return &Function{FunctionName: name, FuncBody: body}, nil
 }
 
 func (p *Parser) parseFunctionName() (FunctionName, error) {
@@ -37,15 +59,16 @@ func (p *Parser) parseFunctionName() (FunctionName, error) {
 		names = append(names, p.currentToken.Value)
 		p.currentToken = p.lexer.NextToken()
 	}
+	var lastName string
 	if p.currentToken.Type == lexer.TokenColon {
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
 			return FunctionName{}, errors.New("missing identifier")
 		}
-		name = p.currentToken.Value
+		lastName = p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
 	}
-	return FunctionName{FirstName: name, Names: names}, nil
+	return FunctionName{FirstName: name, Names: names, LastName: lastName}, nil
 }
 
 func (p *Parser) parseFunctionBody() (FunctionBody, error) {
