@@ -74,6 +74,7 @@ const (
 	TokenNumeral
 	TokenComment
 	TokenError
+	TokenSpace
 )
 
 const (
@@ -87,6 +88,8 @@ func (t TokenType) String() string {
 	switch t {
 	case TokenEOF:
 		return "EOF"
+	case TokenSpace:
+		return "SPACE"
 	case TokenPlus:
 		return "+"
 	case TokenMinus:
@@ -259,15 +262,23 @@ func (l *Lexer) HasNext() bool {
 }
 
 func (l *Lexer) NextToken() Token {
+	t := l.nextToken()
+	for t.Type == TokenSpace || t.Type == TokenComment {
+		t = l.nextToken()
+	}
+	return t
+}
+
+func (l *Lexer) nextToken() Token {
 	var token Token
 	input := l.input
 	i := l.position
-	for i < len(input) && unicode.IsSpace(rune(input[i])) {
-		i++
-	}
 	if i < len(input) {
 		ch := input[i]
 		switch {
+		case unicode.IsSpace(rune(ch)):
+			token = Token{TokenSpace, string(ch)}
+			i++
 		case strings.ContainsRune(IdentifierStartSymbols, rune(ch)):
 			start := i
 			for i < len(input) && strings.ContainsRune(IdentifierSymbols, rune(input[i])) {
