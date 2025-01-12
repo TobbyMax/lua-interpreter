@@ -1,7 +1,13 @@
 table = {
     a = 1,
     ["b"] = 2,
-    3
+    3,
+    {
+        c = 4,
+        d = {
+            e = 5
+        }
+    }
 }
 
 print "test-primitive.lua"

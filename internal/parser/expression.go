@@ -196,6 +196,7 @@ func (p *Parser) parseTableConstructor() (*TableConstructorExpression, error) {
 		}
 		fields = append(fields, field)
 		if p.currentToken.Type == lexer.TokenRightBrace {
+			p.currentToken = p.lexer.NextToken()
 			break
 		} else if p.currentToken.Type != lexer.TokenComma {
 			return nil, errors.New("expected ',' or '}'")
