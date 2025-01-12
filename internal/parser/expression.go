@@ -305,7 +305,33 @@ func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if p.currentToken.Type == lexer.TokenColon {
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type != lexer.TokenIdentifier {
+			return nil, errors.New("missing identifier after ':'")
+		}
+		name := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		args, err := p.parseArgs()
+		if err != nil {
+			return nil, err
+		}
+		return &FunctionCall{
+			PrefixExp: prefixExp,
+			Name:      name,
+			Args:      args,
+		}, nil
+	} else if p.currentToken.Type == lexer.TokenLeftParen {
+		args, err := p.parseArgs()
+		if err != nil {
+			return nil, err
+		}
+		return &FunctionCall{
+			PrefixExp: prefixExp,
+			Name:      "",
+			Args:      args,
+		}, nil
+	}
 	return prefixExp, nil
 }
 
