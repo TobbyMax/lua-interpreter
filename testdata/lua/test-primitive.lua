@@ -1,9 +1,12 @@
+table = {
+    a = 1,
+    ["b"] = 2,
+    3
+}
+
 print "test-primitive.lua"
--- table = {
---     a = 1,
---     ["b"] = 2,
---     3
--- }
+b = func "a"
+
 local a = 1 + 3 -- this is a comment
 
 :: label1 ::

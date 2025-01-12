@@ -8,6 +8,10 @@ import (
 	"lua-interpreter/internal/lexer"
 )
 
+var (
+	ErrNoFunctionCallPostfix = errors.New("expected function call arguments or ':' Name args after prefix expression")
+)
+
 type (
 	// FunctionDefinition
 	// functiondef ::= function funcbody
@@ -305,7 +309,57 @@ func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.currentToken.Type == lexer.TokenColon {
+	funcCall, err := p.parseFunctionCallPostfix(prefixExp)
+	if errors.Is(err, ErrNoFunctionCallPostfix) {
+		// If we didn't find a function call postfix, we return the prefix expression
+		// as it is a valid prefix expression (e.g. a variable or a function definition).
+		return prefixExp, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return funcCall, nil
+}
+
+// parseFunctionCallPostfix
+// This function is called when we already have a prefix expression
+// and we want to parse the function call postfix (args or ':' Name args)
+func (p *Parser) parseFunctionCallPostfix(prefixExp PrefixExpression) (*FunctionCall, error) {
+	if p.currentToken.Type == lexer.TokenLiteralString {
+		str := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		return &FunctionCall{
+			PrefixExp: prefixExp,
+			Name:      "",
+			Args:      &LiteralString{Value: str},
+		}, nil
+	} else if p.currentToken.Type == lexer.TokenLeftBrace {
+		args, err := p.parseTableConstructor()
+		if err != nil {
+			return nil, err
+		}
+		return &FunctionCall{
+			PrefixExp: prefixExp,
+			Name:      "",
+			Args:      args,
+		}, nil
+	} else if p.currentToken.Type == lexer.TokenColon {
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type != lexer.TokenIdentifier {
+			return nil, errors.New("missing identifier after ':'")
+		}
+		name := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		args, err := p.parseArgs()
+		if err != nil {
+			return nil, err
+		}
+		return &FunctionCall{
+			PrefixExp: prefixExp,
+			Name:      name,
+			Args:      args,
+		}, nil
+	} else if p.currentToken.Type == lexer.TokenColon {
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
 			return nil, errors.New("missing identifier after ':'")
@@ -332,7 +386,7 @@ func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
 			Args:      args,
 		}, nil
 	}
-	return prefixExp, nil
+	return nil, ErrNoFunctionCallPostfix
 }
 
 // prefixexp ::= var | ‘(’ exp ‘)’

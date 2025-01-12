@@ -202,7 +202,7 @@ func (p *Parser) parseLabel() (*Label, error) {
 // functioncall ::= prefixexp args | prefixexp ‘:’ Name args
 // prefixexp ::= var  // for this case prefixexp is a Var
 // args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
-func (p *Parser) parseAssignmentOrFunctionCall() (*Assignment, error) {
+func (p *Parser) parseAssignmentOrFunctionCall() (Statement, error) {
 	v, err := p.parseVar()
 	if err != nil {
 		return nil, err
@@ -210,9 +210,7 @@ func (p *Parser) parseAssignmentOrFunctionCall() (*Assignment, error) {
 	vars := []Var{v}
 	switch p.currentToken.Type {
 	case lexer.TokenColon, lexer.TokenLeftParen, lexer.TokenLeftBrace, lexer.TokenLiteralString:
-		// This is a function call, not an assignment
-		// TODO: Handle function calls properly
-		return nil, fmt.Errorf("unexpected token: %s, expected assignment", p.currentToken.Type)
+		return p.parseFunctionCallPostfix(v)
 	case lexer.TokenComma:
 		otherVars, err := p.parseVarList()
 		if err != nil {
