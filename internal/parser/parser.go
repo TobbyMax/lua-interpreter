@@ -22,65 +22,6 @@ type (
 		Names    []string
 		IsVarArg bool
 	}
-	// ExpressionList
-	// explist ::= exp {‘,’ exp}
-	ExpressionList struct {
-		Expressions []Expression
-	}
-	// Args [ExpressionList | TableConstructorExpression | LiteralString]
-	// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
-	Args interface{}
-	Arg  interface{}
-	// FunctionCall
-	// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
-	FunctionCall struct {
-		PrefixExp PrefixExpression
-		Name      string
-		Args      Args
-	}
-	// PrefixExpression
-	// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
-	PrefixExpression interface{}
-	// ExpToExpField
-	// ‘[’ exp ‘]’ ‘=’ exp
-	ExpToExpField struct {
-		Key   Expression
-		Value Expression
-	}
-	// NameField
-	// Name ‘=’ exp
-	NameField struct {
-		Name  string
-		Value Expression
-	}
-	// ExpressionField
-	// exp
-	ExpressionField struct {
-		Value Expression
-	}
-	// Field
-	// field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
-	Field interface{}
-	// TableConstructorExpression
-	// tableconstructor ::= ‘{’ [fieldlist] ‘}’
-	TableConstructorExpression struct {
-		Fields []Field
-	}
-	UnaryOperatorExpression struct {
-		Operator   lexer.Token
-		Expression Expression
-	}
-	BinaryOperatorExpression struct {
-		Operator lexer.Token
-		Left     Expression
-		Right    Expression
-	}
-	// Expression
-	// exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
-	//       | functiondef | prefixexp | tableconstructor | opunary exp
-	//       | exp binop exp
-	Expression interface{}
-
 	// ReturnStatement ::= return [explist] [‘;’]
 	// retstat ::= return [explist] [‘;’]
 	ReturnStatement struct {

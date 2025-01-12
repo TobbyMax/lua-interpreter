@@ -95,8 +95,10 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseLocalDeclaration()
 	case lexer.TokenDoubleColon:
 		return p.parseLabel()
+	case lexer.TokenLeftParen:
+		return p.parseFunctionCall()
 	case lexer.TokenIdentifier:
-		return p.parseAssignment()
+		return p.parseAssignmentOrFunctionCall()
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
 	}
@@ -180,55 +182,6 @@ func (p *Parser) parseVar() (Var, error) {
 	}
 }
 
-// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
-func (p *Parser) parsePrefixExpression() (PrefixExpression, error) {
-	switch p.currentToken.Type {
-	// todo: add support for function calls
-	case lexer.TokenIdentifier:
-		name := p.currentToken.Value
-		p.currentToken = p.lexer.NextToken()
-		return NameVar{Name: name}, nil
-	case lexer.TokenLeftParen:
-		p.currentToken = p.lexer.NextToken()
-		exp, err := p.parseExpression()
-		if err != nil {
-			return nil, err
-		}
-		if p.currentToken.Type != lexer.TokenRightParen {
-			return nil, errors.New("missing ')'")
-		}
-		p.currentToken = p.lexer.NextToken()
-		return exp.(PrefixExpression), nil
-	default:
-		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
-	}
-}
-
-// parlist ::= namelist [‘,’ ‘...’] | ‘...’
-func (p *Parser) parseParameterList() (ParameterList, error) {
-	var names []string
-	var isVararg bool
-	if p.currentToken.Type == lexer.TokenTripleDot {
-		isVararg = true
-		p.currentToken = p.lexer.NextToken()
-	} else {
-		for p.currentToken.Type == lexer.TokenIdentifier {
-			names = append(names, p.currentToken.Value)
-			p.currentToken = p.lexer.NextToken()
-			if p.currentToken.Type == lexer.TokenComma {
-				p.currentToken = p.lexer.NextToken()
-			} else {
-				break
-			}
-		}
-		if p.currentToken.Type == lexer.TokenTripleDot {
-			isVararg = true
-			p.currentToken = p.lexer.NextToken()
-		}
-	}
-	return ParameterList{Names: names, IsVarArg: isVararg}, nil
-}
-
 func (p *Parser) parseLabel() (*Label, error) {
 	p.currentToken = p.lexer.NextToken()
 	if p.currentToken.Type != lexer.TokenIdentifier {
@@ -243,11 +196,31 @@ func (p *Parser) parseLabel() (*Label, error) {
 	return &Label{Name: name}, nil
 }
 
-func (p *Parser) parseAssignment() (*Assignment, error) {
-	vars, err := p.parseVarList()
+// varlist ‘=’ explist
+// varlist ::= var { ',' var }
+// functioncall
+// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+// prefixexp ::= var  // for this case prefixexp is a Var
+// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
+func (p *Parser) parseAssignmentOrFunctionCall() (*Assignment, error) {
+	v, err := p.parseVar()
 	if err != nil {
 		return nil, err
 	}
+	vars := []Var{v}
+	switch p.currentToken.Type {
+	case lexer.TokenColon, lexer.TokenLeftParen, lexer.TokenLeftBrace, lexer.TokenLiteralString:
+		// This is a function call, not an assignment
+		// TODO: Handle function calls properly
+		return nil, fmt.Errorf("unexpected token: %s, expected assignment", p.currentToken.Type)
+	case lexer.TokenComma:
+		otherVars, err := p.parseVarList()
+		if err != nil {
+			return nil, err
+		}
+		vars = append(vars, otherVars...)
+	}
+
 	if p.currentToken.Type != lexer.TokenAssign {
 		return nil, errors.New("missing '='")
 	}

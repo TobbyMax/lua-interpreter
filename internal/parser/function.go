@@ -94,3 +94,40 @@ func (p *Parser) parseFunctionBody() (FunctionBody, error) {
 	p.currentToken = p.lexer.NextToken()
 	return FunctionBody{ParameterList: parList, Block: block}, nil
 }
+
+func (p *Parser) parseFunctionDefinition() (*FunctionDefinition, error) {
+	if p.currentToken.Type != lexer.TokenKeywordFunction {
+		return nil, errors.New("missing 'function' keyword")
+	}
+	p.currentToken = p.lexer.NextToken()
+	body, err := p.parseFunctionBody()
+	if err != nil {
+		return nil, err
+	}
+	return &FunctionDefinition{FunctionBody: body}, nil
+}
+
+// parlist ::= namelist [‘,’ ‘...’] | ‘...’
+func (p *Parser) parseParameterList() (ParameterList, error) {
+	var names []string
+	var isVararg bool
+	if p.currentToken.Type == lexer.TokenTripleDot {
+		isVararg = true
+		p.currentToken = p.lexer.NextToken()
+	} else {
+		for p.currentToken.Type == lexer.TokenIdentifier {
+			names = append(names, p.currentToken.Value)
+			p.currentToken = p.lexer.NextToken()
+			if p.currentToken.Type == lexer.TokenComma {
+				p.currentToken = p.lexer.NextToken()
+			} else {
+				break
+			}
+		}
+		if p.currentToken.Type == lexer.TokenTripleDot {
+			isVararg = true
+			p.currentToken = p.lexer.NextToken()
+		}
+	}
+	return ParameterList{Names: names, IsVarArg: isVararg}, nil
+}

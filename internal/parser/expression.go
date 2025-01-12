@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"lua-interpreter/internal/lexer"
@@ -13,6 +14,63 @@ type (
 	FunctionDefinition struct {
 		FunctionBody FunctionBody
 	}
+	// ExpToExpField
+	// ‘[’ exp ‘]’ ‘=’ exp
+	ExpToExpField struct {
+		Key   Expression
+		Value Expression
+	}
+	// NameField
+	// Name ‘=’ exp
+	NameField struct {
+		Name  string
+		Value Expression
+	}
+	// ExpressionField
+	// exp
+	ExpressionField struct {
+		Value Expression
+	}
+	// Field
+	// field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
+	Field interface{}
+	// TableConstructorExpression
+	// tableconstructor ::= ‘{’ [fieldlist] ‘}’
+	TableConstructorExpression struct {
+		Fields []Field
+	}
+	// ExpressionList
+	// explist ::= exp {‘,’ exp}
+	ExpressionList struct {
+		Expressions []Expression
+	}
+	// Args [ExpressionList | TableConstructorExpression | LiteralString]
+	// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
+	Args interface{}
+	// FunctionCall
+	// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+	FunctionCall struct {
+		PrefixExp PrefixExpression
+		Name      string
+		Args      Args
+	}
+	// PrefixExpression
+	// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
+	PrefixExpression        interface{}
+	UnaryOperatorExpression struct {
+		Operator   lexer.Token
+		Expression Expression
+	}
+	BinaryOperatorExpression struct {
+		Operator lexer.Token
+		Left     Expression
+		Right    Expression
+	}
+	// Expression
+	// exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
+	//       | functiondef | prefixexp | tableconstructor | opunary exp
+	//       | exp binop exp
+	Expression interface{}
 )
 
 var (
@@ -49,26 +107,38 @@ var (
 func (p *Parser) parseExpression() (Expression, error) {
 	var (
 		// Sets the priority of the operators (power - highest, or - lowest)
-		parsePower  = p.parseBinaryExp(p.parseExpressionBase, lexer.TokenPower)
-		parseUnary  = p.parseUnaryExp(parsePower, UnaryOperators...)
+		// 1 - power
+		parsePower = p.parseBinaryExp(p.parseExpressionBase, lexer.TokenPower)
+		// 2 - unary
+		parseUnary = p.parseUnaryExp(parsePower, UnaryOperators...)
+		// 3 - multiplicative
 		parseMulDiv = p.parseBinaryExp(parseUnary, MultiplicativeOperators...)
+		// 4 - additive
 		parseAddSub = p.parseBinaryExp(parseMulDiv, AdditiveOperators...)
+		// 5 - concatenation
 		parseConcat = p.parseBinaryExp(parseAddSub, lexer.TokenDoubleDot)
-		parseShift  = p.parseBinaryExp(parseConcat, ShiftOperators...)
+		// 6 - shift
+		parseShift = p.parseBinaryExp(parseConcat, ShiftOperators...)
+		// 7 - bitwise AND
 		parseBinAnd = p.parseBinaryExp(parseShift, lexer.TokenBinAnd)
+		// 8 - bitwise XOR
 		parseBinXor = p.parseBinaryExp(parseBinAnd, lexer.TokenTilde)
-		parseBinOr  = p.parseBinaryExp(parseBinXor, lexer.TokenBinOr)
-		parseComp   = p.parseBinaryExp(parseBinOr, ComparisonOperators...)
-		parseAnd    = p.parseBinaryExp(parseComp, lexer.TokenKeywordAnd)
-		parseOr     = p.parseBinaryExp(parseAnd, lexer.TokenKeywordOr)
+		// 9 - bitwise OR
+		parseBinOr = p.parseBinaryExp(parseBinXor, lexer.TokenBinOr)
+		// 10 - comparison
+		parseComp = p.parseBinaryExp(parseBinOr, ComparisonOperators...)
+		// 11 - logical AND
+		parseAnd = p.parseBinaryExp(parseComp, lexer.TokenKeywordAnd)
+		// 12 - logical OR
+		parseOr = p.parseBinaryExp(parseAnd, lexer.TokenKeywordOr)
 	)
 	return parseOr()
 }
 
 // exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
 //
-//	| functiondef | prefixexp | tableconstructor | opunary exp
-//	| exp binop exp
+//	| functiondef | prefixexp | tableconstructor
+//	| opunary exp | exp binop exp
 func (p *Parser) parseExpressionBase() (Expression, error) {
 	switch p.currentToken.Type {
 	case lexer.TokenKeywordNil:
@@ -96,20 +166,81 @@ func (p *Parser) parseExpressionBase() (Expression, error) {
 	case lexer.TokenTripleDot:
 		p.currentToken = p.lexer.NextToken()
 		return &VarArgExpression{}, nil
+	case lexer.TokenKeywordFunction:
+		p.currentToken = p.lexer.NextToken()
+		return p.parseFunctionDefinition()
+	case lexer.TokenIdentifier, lexer.TokenLeftParen:
+		return p.parsePrefixExpression()
+	case lexer.TokenLeftBrace:
+		return p.parseTableConstructor()
+	default:
+		return nil, errors.New("unexpected token: " + p.currentToken.Type.String())
+	}
+}
+
+func (p *Parser) parseTableConstructor() (*TableConstructorExpression, error) {
+	p.currentToken = p.lexer.NextToken()
+	var fields []Field
+	for p.currentToken.Type != lexer.TokenRightBrace {
+		if p.currentToken.Type == lexer.TokenComma {
+			p.currentToken = p.lexer.NextToken()
+			continue
+		}
+		field, err := p.parseField()
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, field)
+		if p.currentToken.Type == lexer.TokenRightBrace {
+			break
+		} else if p.currentToken.Type != lexer.TokenComma {
+			return nil, errors.New("expected ',' or '}'")
+		}
+		p.currentToken = p.lexer.NextToken()
+	}
+	return &TableConstructorExpression{Fields: fields}, nil
+}
+
+// field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
+func (p *Parser) parseField() (Field, error) {
+	switch p.currentToken.Type {
+	case lexer.TokenLeftBracket:
+		p.currentToken = p.lexer.NextToken()
+		key, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		if p.currentToken.Type != lexer.TokenRightBracket {
+			return nil, errors.New("missing ']'")
+		}
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type != lexer.TokenAssign {
+			return nil, errors.New("missing '='")
+		}
+		p.currentToken = p.lexer.NextToken()
+		value, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		return &ExpToExpField{Key: key, Value: value}, nil
 	case lexer.TokenIdentifier:
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return &NameVar{Name: name}, nil
-	//case lexer.TokenKeywordFunction:
-	//	p.currentToken = p.lexer.NextToken()
-	//	return p.parseFunctionDef()
-	//case lexer.TokenLeftBrace:
-	//	p.currentToken = p.lexer.NextToken()
-	//	return p.parseTableConstructor()
-	//case lexer.TokenIdentifier, lexer.TokenLeftParen:
-	//	return p.parsePrefixExpression()
+		if p.currentToken.Type != lexer.TokenAssign {
+			return &ExpressionField{Value: &NameVar{Name: name}}, nil
+		}
+		p.currentToken = p.lexer.NextToken()
+		value, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		return &NameField{Name: name, Value: value}, nil
 	default:
-		return nil, errors.New("unexpected token: " + p.currentToken.Type.String())
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		return &ExpressionField{Value: exp}, nil
 	}
 }
 
@@ -161,4 +292,67 @@ func isOneOfTypes(tokenType lexer.TokenType, tokenTypes []lexer.TokenType) bool 
 		}
 	}
 	return false
+}
+
+// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
+func (p *Parser) parsePrefixExpression() (PrefixExpression, error) {
+	return p.parseFunctionCall()
+}
+
+// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
+	prefixExp, err := p.parsePrefixExpressionBase()
+	if err != nil {
+		return nil, err
+	}
+
+	return prefixExp, nil
+}
+
+// prefixexp ::= var | ‘(’ exp ‘)’
+func (p *Parser) parsePrefixExpressionBase() (PrefixExpression, error) {
+	switch p.currentToken.Type {
+	case lexer.TokenIdentifier:
+		return p.parseVar()
+	case lexer.TokenLeftParen:
+		p.currentToken = p.lexer.NextToken()
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		if p.currentToken.Type != lexer.TokenRightParen {
+			return nil, errors.New("missing ')'")
+		}
+		p.currentToken = p.lexer.NextToken()
+		return exp.(PrefixExpression), nil
+	default:
+		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
+	}
+}
+
+// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
+func (p *Parser) parseArgs() (Args, error) {
+	if p.currentToken.Type == lexer.TokenLeftParen {
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type == lexer.TokenRightParen {
+			p.currentToken = p.lexer.NextToken()
+			return &ExpressionList{Expressions: nil}, nil
+		}
+		explist, err := p.parseExpressionList()
+		if err != nil {
+			return nil, err
+		}
+		if p.currentToken.Type != lexer.TokenRightParen {
+			return nil, errors.New("missing ')'")
+		}
+		p.currentToken = p.lexer.NextToken()
+		return explist, nil
+	} else if p.currentToken.Type == lexer.TokenLeftBrace {
+		return p.parseTableConstructor()
+	} else if p.currentToken.Type == lexer.TokenLiteralString {
+		str := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		return &LiteralString{Value: str}, nil
+	}
+	return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
 }
