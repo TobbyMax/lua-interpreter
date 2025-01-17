@@ -144,12 +144,21 @@ func (p *Parser) parseVarList() ([]Var, error) {
 }
 
 // var ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
+// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
+// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+// var ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp args ‘[’ exp ‘]’ | prefixexp ‘:’ Name args ‘[’ exp ‘]’
+//
+//	| prefixexp ‘.’ Name | prefixexp args ‘.’ Name | prefixexp ‘:’ Name args ‘.’ Name
 func (p *Parser) parseVar() (Var, error) {
+	prefixExp, err := p.parseFunctionCall()
+	if err != nil {
+		return nil, err
+	}
+	return p.parseVarPostfix(prefixExp)
+}
+
+func (p *Parser) parseVarPostfix(prefixExp PrefixExpression) (Var, error) {
 	switch p.currentToken.Type {
-	case lexer.TokenIdentifier:
-		name := p.currentToken.Value
-		p.currentToken = p.lexer.NextToken()
-		return NameVar{Name: name}, nil
 	case lexer.TokenLeftBracket:
 		p.currentToken = p.lexer.NextToken()
 		exp, err := p.parseExpression()
@@ -160,26 +169,25 @@ func (p *Parser) parseVar() (Var, error) {
 			return nil, errors.New("missing ']'")
 		}
 		p.currentToken = p.lexer.NextToken()
-		prefixExp, err := p.parsePrefixExpression()
-		if err != nil {
-			return nil, err
-		}
-		return IndexedVar{PrefixExp: prefixExp.(PrefixExpression), Exp: exp}, nil
+		return &IndexedVar{PrefixExp: prefixExp, Exp: exp}, nil
 	case lexer.TokenDot:
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
-			return nil, errors.New("missing identifier")
+			return nil, errors.New("missing identifier after '.'")
 		}
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		prefixExp, err := p.parsePrefixExpression()
-		if err != nil {
-			return nil, err
-		}
-		return MemberVar{PrefixExp: prefixExp.(PrefixExpression), Name: name}, nil
+		return &MemberVar{PrefixExp: prefixExp, Name: name}, nil
 	default:
-		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
+		return prefixExp, nil
 	}
+}
+
+// var ::= Name
+func (p *Parser) parseVarBase() (Var, error) {
+	name := p.currentToken.Value
+	p.currentToken = p.lexer.NextToken()
+	return NameVar{Name: name}, nil
 }
 
 func (p *Parser) parseLabel() (*Label, error) {

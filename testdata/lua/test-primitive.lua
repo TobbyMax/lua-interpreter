@@ -1,3 +1,7 @@
+print(table.a)
+table.b = func "a"
+table[1] = table[2] + table[3]
+
 table = {
     a = 1,
     ["b"] = 2,
@@ -11,7 +15,6 @@ table = {
 }
 
 print "test-primitive.lua"
-b = func "a"
 
 local a = 1 + 3 -- this is a comment
 

@@ -299,12 +299,66 @@ func isOneOfTypes(tokenType lexer.TokenType, tokenTypes []lexer.TokenType) bool 
 	return false
 }
 
+var prefixExpTokens = []lexer.TokenType{
+	lexer.TokenLeftParen,
+	lexer.TokenLeftBrace,
+	lexer.TokenLiteralString,
+	lexer.TokenDot,
+	lexer.TokenLeftBracket,
+	lexer.TokenColon,
+}
+
 // prefixexp ::= var | functioncall | ‘(’ exp ‘)’
+// var ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
+// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+// prefixexp ::= Name
+//
+//	| ‘(’ exp ‘)’
+//	| prefixexp ‘[’ exp ‘]’
+//	| prefixexp ‘.’ Name
+//	| prefixexp [‘:’ Name] args
 func (p *Parser) parsePrefixExpression() (PrefixExpression, error) {
-	return p.parseFunctionCall()
+	prefix, err := p.parsePrefixExpressionBase()
+	if err != nil {
+		return nil, err
+	}
+	return p.parsePrefixExpressionPostfix(prefix)
+}
+
+func (p *Parser) parsePrefixExpressionPostfix(prefix PrefixExpression) (PrefixExpression, error) {
+	switch p.currentToken.Type {
+	case lexer.TokenLeftBracket:
+		p.currentToken = p.lexer.NextToken()
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, err
+		}
+		if p.currentToken.Type != lexer.TokenRightBracket {
+			return nil, errors.New("missing ']'")
+		}
+		p.currentToken = p.lexer.NextToken()
+		return &IndexedVar{PrefixExp: prefix, Exp: exp}, nil
+	case lexer.TokenDot:
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type != lexer.TokenIdentifier {
+			return nil, errors.New("missing identifier after '.'")
+		}
+		name := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		return &MemberVar{PrefixExp: prefix, Name: name}, nil
+	case lexer.TokenLeftParen, lexer.TokenColon, lexer.TokenLiteralString, lexer.TokenLeftBrace:
+		funcCall, err := p.parseFunctionCallPostfix(prefix)
+		if err != nil {
+			return nil, err
+		}
+		return funcCall, nil
+	default:
+		return prefix, nil
+	}
 }
 
 // functioncall ::= prefixexp args | prefixexp ‘:’ Name args
+// functioncall ::= Name args | prefixexp ‘[’ exp ‘]’ args |  prefixexp ‘.’ Name | prefixexp ‘:’ Name args
 func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
 	prefixExp, err := p.parsePrefixExpressionBase()
 	if err != nil {
@@ -394,7 +448,9 @@ func (p *Parser) parseFunctionCallPostfix(prefixExp PrefixExpression) (*Function
 func (p *Parser) parsePrefixExpressionBase() (PrefixExpression, error) {
 	switch p.currentToken.Type {
 	case lexer.TokenIdentifier:
-		return p.parseVar()
+		name := p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+		return NameVar{Name: name}, nil
 	case lexer.TokenLeftParen:
 		p.currentToken = p.lexer.NextToken()
 		exp, err := p.parseExpression()
