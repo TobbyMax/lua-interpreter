@@ -393,6 +393,9 @@ func (l *Lexer) nextToken() Token {
 					for i+1 < len(input) && input[i+1] != '\n' {
 						i++
 					}
+					if i < len(input) {
+						i++
+					}
 					token = Token{TokenComment, input[start:i]}
 				}
 			} else {

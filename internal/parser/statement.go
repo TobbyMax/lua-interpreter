@@ -150,11 +150,19 @@ func (p *Parser) parseVarList() ([]Var, error) {
 //
 //	| prefixexp ‘.’ Name | prefixexp args ‘.’ Name | prefixexp ‘:’ Name args ‘.’ Name
 func (p *Parser) parseVar() (Var, error) {
-	prefixExp, err := p.parseFunctionCall()
+	name := p.currentToken.Value
+	p.currentToken = p.lexer.NextToken()
+
+	v, err := p.parsePrefixExpressionTail(&NameVar{Name: name})
 	if err != nil {
 		return nil, err
 	}
-	return p.parseVarPostfix(prefixExp)
+	switch v.(type) {
+	case *NameVar, *IndexedVar, *MemberVar:
+		return v, nil
+	default:
+		return nil, fmt.Errorf("unexpected var type: %T", v)
+	}
 }
 
 func (p *Parser) parseVarPostfix(prefixExp PrefixExpression) (Var, error) {
@@ -183,13 +191,6 @@ func (p *Parser) parseVarPostfix(prefixExp PrefixExpression) (Var, error) {
 	}
 }
 
-// var ::= Name
-func (p *Parser) parseVarBase() (Var, error) {
-	name := p.currentToken.Value
-	p.currentToken = p.lexer.NextToken()
-	return NameVar{Name: name}, nil
-}
-
 func (p *Parser) parseLabel() (*Label, error) {
 	p.currentToken = p.lexer.NextToken()
 	if p.currentToken.Type != lexer.TokenIdentifier {
@@ -202,40 +203,6 @@ func (p *Parser) parseLabel() (*Label, error) {
 	}
 	p.currentToken = p.lexer.NextToken()
 	return &Label{Name: name}, nil
-}
-
-// varlist ‘=’ explist
-// varlist ::= var { ',' var }
-// functioncall
-// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
-// prefixexp ::= var  // for this case prefixexp is a Var
-// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
-func (p *Parser) parseAssignmentOrFunctionCall() (Statement, error) {
-	v, err := p.parseVar()
-	if err != nil {
-		return nil, err
-	}
-	vars := []Var{v}
-	switch p.currentToken.Type {
-	case lexer.TokenColon, lexer.TokenLeftParen, lexer.TokenLeftBrace, lexer.TokenLiteralString:
-		return p.parseFunctionCallPostfix(v)
-	case lexer.TokenComma:
-		otherVars, err := p.parseVarList()
-		if err != nil {
-			return nil, err
-		}
-		vars = append(vars, otherVars...)
-	}
-
-	if p.currentToken.Type != lexer.TokenAssign {
-		return nil, errors.New("missing '='")
-	}
-	p.currentToken = p.lexer.NextToken()
-	exps, err := p.parseExpressionList()
-	if err != nil {
-		return nil, err
-	}
-	return &Assignment{Vars: vars, Exps: exps}, nil
 }
 
 func (p *Parser) parseLocalDeclaration() (Statement, error) {

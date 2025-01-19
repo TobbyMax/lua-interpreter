@@ -1,6 +1,7 @@
 print(table.a)
 table.b = func "a"
-table[1] = table[2] + table[3]
+
+table, s = a.b.c:print(table.a.b), "test-primitive.lua"
 
 table = {
     a = 1,
@@ -14,15 +15,13 @@ table = {
     }
 }
 
+table[1] = table[2] + table[3]
+
 print "test-primitive.lua"
 
 local a = 1 + 3 -- this is a comment
 
-:: label1 ::
-local function b(a)
-    a = a + 1
-    return a
-end
+local b, c = 2, 3
 
 --[==[
     this is a
