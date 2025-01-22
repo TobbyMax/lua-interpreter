@@ -4,76 +4,12 @@ import (
 	"errors"
 	"strconv"
 
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
 )
 
 var (
 	ErrNoFunctionCallPostfix = errors.New("expected function call arguments or ':' Name args after prefix expression")
-)
-
-type (
-	// FunctionDefinition
-	// functiondef ::= function funcbody
-	FunctionDefinition struct {
-		FunctionBody FunctionBody
-	}
-	// ExpToExpField
-	// ‘[’ exp ‘]’ ‘=’ exp
-	ExpToExpField struct {
-		Key   Expression
-		Value Expression
-	}
-	// NameField
-	// Name ‘=’ exp
-	NameField struct {
-		Name  string
-		Value Expression
-	}
-	// ExpressionField
-	// exp
-	ExpressionField struct {
-		Value Expression
-	}
-	// Field
-	// field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
-	Field interface{}
-	// TableConstructorExpression
-	// tableconstructor ::= ‘{’ [fieldlist] ‘}’
-	TableConstructorExpression struct {
-		Fields []Field
-	}
-	// ExpressionList
-	// explist ::= exp {‘,’ exp}
-	ExpressionList struct {
-		Expressions []Expression
-	}
-	// Args [ExpressionList | TableConstructorExpression | LiteralString]
-	// args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
-	Args interface{}
-	// FunctionCall
-	// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
-	FunctionCall struct {
-		PrefixExp PrefixExpression
-		Name      string
-		Args      Args
-	}
-	// PrefixExpression
-	// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
-	PrefixExpression        interface{}
-	UnaryOperatorExpression struct {
-		Operator   lexer.Token
-		Expression Expression
-	}
-	BinaryOperatorExpression struct {
-		Operator lexer.Token
-		Left     Expression
-		Right    Expression
-	}
-	// Expression
-	// exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
-	//       | functiondef | prefixexp | tableconstructor | opunary exp
-	//       | exp binop exp
-	Expression interface{}
 )
 
 var (
@@ -107,7 +43,7 @@ var (
 	}
 )
 
-func (p *Parser) parseExpression() (Expression, error) {
+func (p *Parser) parseExpression() (ast.Expression, error) {
 	var (
 		// Sets the priority of the operators (power - highest, or - lowest)
 		// 1 - power
@@ -142,17 +78,17 @@ func (p *Parser) parseExpression() (Expression, error) {
 //
 //	| functiondef | prefixexp | tableconstructor
 //	| opunary exp | exp binop exp
-func (p *Parser) parseExpressionBase() (Expression, error) {
+func (p *Parser) parseExpressionBase() (ast.Expression, error) {
 	switch p.currentToken.Type {
 	case lexer.TokenKeywordNil:
 		p.currentToken = p.lexer.NextToken()
-		return &NilExpression{}, nil
+		return &ast.NilExpression{}, nil
 	case lexer.TokenKeywordFalse:
 		p.currentToken = p.lexer.NextToken()
-		return &BooleanExpression{Value: false}, nil
+		return &ast.BooleanExpression{Value: false}, nil
 	case lexer.TokenKeywordTrue:
 		p.currentToken = p.lexer.NextToken()
-		return &BooleanExpression{Value: true}, nil
+		return &ast.BooleanExpression{Value: true}, nil
 	case lexer.TokenNumeral:
 		str := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
@@ -161,14 +97,14 @@ func (p *Parser) parseExpressionBase() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &NumeralExpression{Value: num}, nil
+		return &ast.NumeralExpression{Value: num}, nil
 	case lexer.TokenLiteralString:
 		str := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return &LiteralString{Value: str}, nil
+		return &ast.LiteralString{Value: str}, nil
 	case lexer.TokenTripleDot:
 		p.currentToken = p.lexer.NextToken()
-		return &VarArgExpression{}, nil
+		return &ast.VarArgExpression{}, nil
 	case lexer.TokenKeywordFunction:
 		p.currentToken = p.lexer.NextToken()
 		return p.parseFunctionDefinition()
@@ -181,9 +117,9 @@ func (p *Parser) parseExpressionBase() (Expression, error) {
 	}
 }
 
-func (p *Parser) parseTableConstructor() (*TableConstructorExpression, error) {
+func (p *Parser) parseTableConstructor() (*ast.TableConstructorExpression, error) {
 	p.currentToken = p.lexer.NextToken()
-	var fields []Field
+	var fields []ast.Field
 	for p.currentToken.Type != lexer.TokenRightBrace {
 		if p.currentToken.Type == lexer.TokenComma {
 			p.currentToken = p.lexer.NextToken()
@@ -202,11 +138,11 @@ func (p *Parser) parseTableConstructor() (*TableConstructorExpression, error) {
 		}
 		p.currentToken = p.lexer.NextToken()
 	}
-	return &TableConstructorExpression{Fields: fields}, nil
+	return &ast.TableConstructorExpression{Fields: fields}, nil
 }
 
 // field ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp
-func (p *Parser) parseField() (Field, error) {
+func (p *Parser) parseField() (ast.Field, error) {
 	switch p.currentToken.Type {
 	case lexer.TokenLeftBracket:
 		p.currentToken = p.lexer.NextToken()
@@ -226,30 +162,30 @@ func (p *Parser) parseField() (Field, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ExpToExpField{Key: key, Value: value}, nil
+		return &ast.ExpToExpField{Key: key, Value: value}, nil
 	case lexer.TokenIdentifier:
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenAssign {
-			return &ExpressionField{Value: &NameVar{Name: name}}, nil
+			return &ast.ExpressionField{Value: &ast.NameVar{Name: name}}, nil
 		}
 		p.currentToken = p.lexer.NextToken()
 		value, err := p.parseExpression()
 		if err != nil {
 			return nil, err
 		}
-		return &NameField{Name: name, Value: value}, nil
+		return &ast.NameField{Name: name, Value: value}, nil
 	default:
 		exp, err := p.parseExpression()
 		if err != nil {
 			return nil, err
 		}
-		return &ExpressionField{Value: exp}, nil
+		return &ast.ExpressionField{Value: exp}, nil
 	}
 }
 
-func (p *Parser) parseBinaryExp(next func() (Expression, error), tokenTypes ...lexer.TokenType) func() (Expression, error) {
-	return func() (Expression, error) {
+func (p *Parser) parseBinaryExp(next func() (ast.Expression, error), tokenTypes ...lexer.TokenType) func() (ast.Expression, error) {
+	return func() (ast.Expression, error) {
 		exp, err := next()
 		if err != nil {
 			return nil, err
@@ -261,7 +197,7 @@ func (p *Parser) parseBinaryExp(next func() (Expression, error), tokenTypes ...l
 			if err != nil {
 				return nil, err
 			}
-			exp = &BinaryOperatorExpression{
+			exp = &ast.BinaryOperatorExpression{
 				Operator: op,
 				Left:     exp,
 				Right:    right,
@@ -271,8 +207,8 @@ func (p *Parser) parseBinaryExp(next func() (Expression, error), tokenTypes ...l
 	}
 }
 
-func (p *Parser) parseUnaryExp(next func() (Expression, error), tokenTypes ...lexer.TokenType) func() (Expression, error) {
-	return func() (Expression, error) {
+func (p *Parser) parseUnaryExp(next func() (ast.Expression, error), tokenTypes ...lexer.TokenType) func() (ast.Expression, error) {
+	return func() (ast.Expression, error) {
 		if isOneOfTypes(p.currentToken.Type, tokenTypes) {
 			op := p.currentToken
 			p.currentToken = p.lexer.NextToken()
@@ -280,7 +216,7 @@ func (p *Parser) parseUnaryExp(next func() (Expression, error), tokenTypes ...le
 			if err != nil {
 				return nil, err
 			}
-			return &UnaryOperatorExpression{
+			return &ast.UnaryOperatorExpression{
 				Operator:   op,
 				Expression: exp,
 			}, nil

@@ -1,38 +1,8 @@
 package parser
 
 import (
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
-)
-
-type (
-	NilExpression     struct{}
-	BooleanExpression struct {
-		Value bool
-	}
-	NumeralExpression struct {
-		Value float64
-	}
-	LiteralString struct {
-		Value string
-	}
-	VarArgExpression struct{}
-	// ParameterList
-	// parlist ::= namelist [‘,’ ‘...’] | ‘...’
-	ParameterList struct {
-		Names    []string
-		IsVarArg bool
-	}
-	// ReturnStatement ::= return [explist] [‘;’]
-	// retstat ::= return [explist] [‘;’]
-	ReturnStatement struct {
-		Expressions []Expression
-	}
-	// Block
-	// block ::= { stat } [ retstat ]
-	Block struct {
-		Statements      []Statement
-		ReturnStatement *ReturnStatement
-	}
 )
 
 type Parser struct {
@@ -46,25 +16,25 @@ func NewParser(lexer *lexer.Lexer) *Parser {
 	}
 }
 
-func (p *Parser) Parse() (Block, error) {
+func (p *Parser) Parse() (ast.Block, error) {
 	p.currentToken = p.lexer.NextToken()
 	return p.parseBlock()
 }
 
-func (p *Parser) parseBlock() (b Block, err error) {
+func (p *Parser) parseBlock() (b ast.Block, err error) {
 	b.Statements, err = p.parseStatements()
 	if err != nil {
-		return Block{}, err
+		return ast.Block{}, err
 	}
 	b.ReturnStatement, err = p.parseReturnStatement()
 	if err != nil {
-		return Block{}, err
+		return ast.Block{}, err
 	}
 	return b, nil
 }
 
-func (p *Parser) parseStatements() ([]Statement, error) {
-	var statements []Statement
+func (p *Parser) parseStatements() ([]ast.Statement, error) {
+	var statements []ast.Statement
 	for p.currentToken.Type != lexer.TokenEOF && p.currentToken.Type != lexer.TokenKeywordReturn &&
 		p.currentToken.Type != lexer.TokenKeywordEnd && p.currentToken.Type != lexer.TokenKeywordElse &&
 		p.currentToken.Type != lexer.TokenKeywordElseIf && p.currentToken.Type != lexer.TokenKeywordUntil {
@@ -77,7 +47,7 @@ func (p *Parser) parseStatements() ([]Statement, error) {
 	return statements, nil
 }
 
-func (p *Parser) parseReturnStatement() (*ReturnStatement, error) {
+func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, error) {
 	if p.currentToken.Type != lexer.TokenKeywordReturn {
 		return nil, nil
 	}
@@ -86,12 +56,12 @@ func (p *Parser) parseReturnStatement() (*ReturnStatement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReturnStatement{
+	return &ast.ReturnStatement{
 		Expressions: expressions,
 	}, nil
 }
 
-func (p *Parser) parseExpressionList() (exps []Expression, err error) {
+func (p *Parser) parseExpressionList() (exps []ast.Expression, err error) {
 	exp, err := p.parseExpression()
 	if err != nil {
 		return nil, err

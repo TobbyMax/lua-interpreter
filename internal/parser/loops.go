@@ -3,33 +3,11 @@ package parser
 import (
 	"errors"
 
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
 )
 
-type (
-	While struct {
-		Exp   Expression
-		Block Block
-	}
-	Repeat struct {
-		Block Block
-		Exp   Expression
-	}
-	For struct {
-		Name  string
-		Init  Expression
-		Limit Expression
-		Step  *Expression
-		Block Block
-	}
-	ForIn struct {
-		Names []string
-		Exps  []Expression
-		Block Block
-	}
-)
-
-func (p *Parser) parseWhileStatement() (*While, error) {
+func (p *Parser) parseWhileStatement() (*ast.While, error) {
 	p.currentToken = p.lexer.NextToken()
 	exp, err := p.parseExpression()
 	if err != nil {
@@ -47,10 +25,10 @@ func (p *Parser) parseWhileStatement() (*While, error) {
 		return nil, errors.New("missing 'end' keyword")
 	}
 	p.currentToken = p.lexer.NextToken()
-	return &While{Exp: exp, Block: block}, nil
+	return &ast.While{Exp: exp, Block: block}, nil
 }
 
-func (p *Parser) parseRepeatStatement() (*Repeat, error) {
+func (p *Parser) parseRepeatStatement() (*ast.Repeat, error) {
 	p.currentToken = p.lexer.NextToken()
 	block, err := p.parseBlock()
 	if err != nil {
@@ -64,10 +42,10 @@ func (p *Parser) parseRepeatStatement() (*Repeat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Repeat{Block: block, Exp: exp}, nil
+	return &ast.Repeat{Block: block, Exp: exp}, nil
 }
 
-func (p *Parser) parseForStatement() (*For, error) {
+func (p *Parser) parseForStatement() (*ast.For, error) {
 	p.currentToken = p.lexer.NextToken()
 	if p.currentToken.Type != lexer.TokenIdentifier {
 		return nil, errors.New("missing identifier")
@@ -91,7 +69,7 @@ func (p *Parser) parseForStatement() (*For, error) {
 	if err != nil {
 		return nil, err
 	}
-	var step *Expression
+	var step *ast.Expression
 	if p.currentToken.Type == lexer.TokenComma {
 		p.currentToken = p.lexer.NextToken()
 		stepExp, err := p.parseExpression()
@@ -112,5 +90,5 @@ func (p *Parser) parseForStatement() (*For, error) {
 		return nil, errors.New("missing 'end' keyword")
 	}
 	p.currentToken = p.lexer.NextToken()
-	return &For{Name: name, Init: init, Limit: limit, Step: step, Block: block}, nil
+	return &ast.For{Name: name, Init: init, Limit: limit, Step: step, Block: block}, nil
 }

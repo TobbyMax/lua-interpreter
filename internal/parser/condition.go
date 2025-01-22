@@ -3,19 +3,20 @@ package parser
 import (
 	"errors"
 
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
 )
 
 type If struct {
-	Exps   []Expression
-	Blocks []Block
+	Exps   []ast.Expression
+	Blocks []ast.Block
 }
 
 func (p *Parser) parseIfStatement() (*If, error) {
 	p.currentToken = p.lexer.NextToken()
 	var (
-		exps   []Expression
-		blocks []Block
+		exps   []ast.Expression
+		blocks []ast.Block
 	)
 	for {
 		exp, err := p.parseExpression()

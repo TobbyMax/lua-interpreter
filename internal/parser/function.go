@@ -3,32 +3,11 @@ package parser
 import (
 	"errors"
 
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
 )
 
-type (
-	// FunctionBody
-	// funcbody ::= ‘(’ [parlist] ‘)’ block end
-	FunctionBody struct {
-		ParameterList ParameterList
-		Block         Block
-	}
-	// FunctionName
-	// funcname ::= Name {‘.’ Name} [‘:’ Name]
-	FunctionName struct {
-		FirstName string
-		Names     []string
-		LastName  string
-	}
-	// Function
-	// function funcname funcbody
-	Function struct {
-		FunctionName FunctionName
-		FuncBody     FunctionBody
-	}
-)
-
-func (p *Parser) parseFunction() (*Function, error) {
+func (p *Parser) parseFunction() (*ast.Function, error) {
 	p.currentToken = p.lexer.NextToken()
 	if p.currentToken.Type != lexer.TokenIdentifier {
 		return nil, errors.New("missing identifier")
@@ -41,12 +20,12 @@ func (p *Parser) parseFunction() (*Function, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Function{FunctionName: name, FuncBody: body}, nil
+	return &ast.Function{FunctionName: name, FuncBody: body}, nil
 }
 
-func (p *Parser) parseFunctionName() (FunctionName, error) {
+func (p *Parser) parseFunctionName() (ast.FunctionName, error) {
 	if p.currentToken.Type != lexer.TokenIdentifier {
-		return FunctionName{}, errors.New("missing identifier")
+		return ast.FunctionName{}, errors.New("missing identifier")
 	}
 	name := p.currentToken.Value
 	p.currentToken = p.lexer.NextToken()
@@ -54,7 +33,7 @@ func (p *Parser) parseFunctionName() (FunctionName, error) {
 	for p.currentToken.Type == lexer.TokenDot {
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
-			return FunctionName{}, errors.New("missing identifier")
+			return ast.FunctionName{}, errors.New("missing identifier")
 		}
 		names = append(names, p.currentToken.Value)
 		p.currentToken = p.lexer.NextToken()
@@ -63,39 +42,39 @@ func (p *Parser) parseFunctionName() (FunctionName, error) {
 	if p.currentToken.Type == lexer.TokenColon {
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
-			return FunctionName{}, errors.New("missing identifier")
+			return ast.FunctionName{}, errors.New("missing identifier")
 		}
 		lastName = p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
 	}
-	return FunctionName{FirstName: name, Names: names, LastName: lastName}, nil
+	return ast.FunctionName{FirstName: name, Names: names, LastName: lastName}, nil
 }
 
-func (p *Parser) parseFunctionBody() (FunctionBody, error) {
+func (p *Parser) parseFunctionBody() (ast.FunctionBody, error) {
 	if p.currentToken.Type != lexer.TokenLeftParen {
-		return FunctionBody{}, errors.New("missing '('")
+		return ast.FunctionBody{}, errors.New("missing '('")
 	}
 	p.currentToken = p.lexer.NextToken()
 	parList, err := p.parseParameterList()
 	if err != nil {
-		return FunctionBody{}, err
+		return ast.FunctionBody{}, err
 	}
 	if p.currentToken.Type != lexer.TokenRightParen {
-		return FunctionBody{}, errors.New("missing ')'")
+		return ast.FunctionBody{}, errors.New("missing ')'")
 	}
 	p.currentToken = p.lexer.NextToken()
 	block, err := p.parseBlock()
 	if err != nil {
-		return FunctionBody{}, err
+		return ast.FunctionBody{}, err
 	}
 	if p.currentToken.Type != lexer.TokenKeywordEnd {
-		return FunctionBody{}, errors.New("missing 'end' keyword")
+		return ast.FunctionBody{}, errors.New("missing 'end' keyword")
 	}
 	p.currentToken = p.lexer.NextToken()
-	return FunctionBody{ParameterList: parList, Block: block}, nil
+	return ast.FunctionBody{ParameterList: parList, Block: block}, nil
 }
 
-func (p *Parser) parseFunctionDefinition() (*FunctionDefinition, error) {
+func (p *Parser) parseFunctionDefinition() (*ast.FunctionDefinition, error) {
 	if p.currentToken.Type != lexer.TokenKeywordFunction {
 		return nil, errors.New("missing 'function' keyword")
 	}
@@ -104,11 +83,11 @@ func (p *Parser) parseFunctionDefinition() (*FunctionDefinition, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FunctionDefinition{FunctionBody: body}, nil
+	return &ast.FunctionDefinition{FunctionBody: body}, nil
 }
 
 // parlist ::= namelist [‘,’ ‘...’] | ‘...’
-func (p *Parser) parseParameterList() (ParameterList, error) {
+func (p *Parser) parseParameterList() (ast.ParameterList, error) {
 	var names []string
 	var isVararg bool
 	if p.currentToken.Type == lexer.TokenTripleDot {
@@ -129,5 +108,5 @@ func (p *Parser) parseParameterList() (ParameterList, error) {
 			p.currentToken = p.lexer.NextToken()
 		}
 	}
-	return ParameterList{Names: names, IsVarArg: isVararg}, nil
+	return ast.ParameterList{Names: names, IsVarArg: isVararg}, nil
 }

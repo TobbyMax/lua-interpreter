@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
 )
 
@@ -40,7 +41,7 @@ var (
 //	| prefixexp ‘[’ exp ‘]’
 //	| prefixexp ‘.’ Name
 //	| prefixexp [‘:’ Name] args
-func (p *Parser) parsePrefixExpression() (PrefixExpression, error) {
+func (p *Parser) parsePrefixExpression() (ast.PrefixExpression, error) {
 	prefix, err := p.parsePrefixExpressionHead()
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func (p *Parser) parsePrefixExpression() (PrefixExpression, error) {
 	return p.parsePrefixExpressionTail(prefix)
 }
 
-func (p *Parser) parsePrefixExpressionTail(head PrefixExpression) (prefix PrefixExpression, err error) {
+func (p *Parser) parsePrefixExpressionTail(head ast.PrefixExpression) (prefix ast.PrefixExpression, err error) {
 	prefix = head
 	for isOneOfTypes(p.currentToken.Type, prefixExpTokens) {
 		prefix, err = p.parsePrefixExpressionStep(prefix)
@@ -59,7 +60,7 @@ func (p *Parser) parsePrefixExpressionTail(head PrefixExpression) (prefix Prefix
 	return prefix, nil
 }
 
-func (p *Parser) parsePrefixExpressionStep(prefix PrefixExpression) (PrefixExpression, error) {
+func (p *Parser) parsePrefixExpressionStep(prefix ast.PrefixExpression) (ast.PrefixExpression, error) {
 	switch p.currentToken.Type {
 	case lexer.TokenLeftBracket:
 		p.currentToken = p.lexer.NextToken()
@@ -71,7 +72,7 @@ func (p *Parser) parsePrefixExpressionStep(prefix PrefixExpression) (PrefixExpre
 			return nil, errors.New("missing ']'")
 		}
 		p.currentToken = p.lexer.NextToken()
-		return &IndexedVar{PrefixExp: prefix, Exp: exp}, nil
+		return &ast.IndexedVar{PrefixExp: prefix, Exp: exp}, nil
 	case lexer.TokenDot:
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
@@ -79,7 +80,7 @@ func (p *Parser) parsePrefixExpressionStep(prefix PrefixExpression) (PrefixExpre
 		}
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return &MemberVar{PrefixExp: prefix, Name: name}, nil
+		return &ast.MemberVar{PrefixExp: prefix, Name: name}, nil
 	case lexer.TokenLeftParen, lexer.TokenColon, lexer.TokenLiteralString, lexer.TokenLeftBrace:
 		funcCall, err := p.parseFunctionCallPostfix(prefix)
 		if err != nil {
@@ -93,7 +94,7 @@ func (p *Parser) parsePrefixExpressionStep(prefix PrefixExpression) (PrefixExpre
 
 // functioncall ::= prefixexp args | prefixexp ‘:’ Name args
 // functioncall ::= Name args | prefixexp ‘[’ exp ‘]’ args |  prefixexp ‘.’ Name | prefixexp ‘:’ Name args
-func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
+func (p *Parser) parseFunctionCall() (ast.PrefixExpression, error) {
 	prefixExp, err := p.parsePrefixExpressionHead()
 	if err != nil {
 		return nil, err
@@ -113,21 +114,21 @@ func (p *Parser) parseFunctionCall() (PrefixExpression, error) {
 // parseFunctionCallPostfix
 // This function is called when we already have a prefix expression
 // and we want to parse the function call postfix (args or ':' Name args)
-func (p *Parser) parseFunctionCallPostfix(prefixExp PrefixExpression) (*FunctionCall, error) {
+func (p *Parser) parseFunctionCallPostfix(prefixExp ast.PrefixExpression) (*ast.FunctionCall, error) {
 	if p.currentToken.Type == lexer.TokenLiteralString {
 		str := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return &FunctionCall{
+		return &ast.FunctionCall{
 			PrefixExp: prefixExp,
 			Name:      "",
-			Args:      &LiteralString{Value: str},
+			Args:      &ast.LiteralString{Value: str},
 		}, nil
 	} else if p.currentToken.Type == lexer.TokenLeftBrace {
 		args, err := p.parseTableConstructor()
 		if err != nil {
 			return nil, err
 		}
-		return &FunctionCall{
+		return &ast.FunctionCall{
 			PrefixExp: prefixExp,
 			Name:      "",
 			Args:      args,
@@ -143,7 +144,7 @@ func (p *Parser) parseFunctionCallPostfix(prefixExp PrefixExpression) (*Function
 		if err != nil {
 			return nil, err
 		}
-		return &FunctionCall{
+		return &ast.FunctionCall{
 			PrefixExp: prefixExp,
 			Name:      name,
 			Args:      args,
@@ -153,7 +154,7 @@ func (p *Parser) parseFunctionCallPostfix(prefixExp PrefixExpression) (*Function
 		if err != nil {
 			return nil, err
 		}
-		return &FunctionCall{
+		return &ast.FunctionCall{
 			PrefixExp: prefixExp,
 			Name:      "",
 			Args:      args,
@@ -163,12 +164,12 @@ func (p *Parser) parseFunctionCallPostfix(prefixExp PrefixExpression) (*Function
 }
 
 // prefixexp ::= var | ‘(’ exp ‘)’
-func (p *Parser) parsePrefixExpressionHead() (PrefixExpression, error) {
+func (p *Parser) parsePrefixExpressionHead() (ast.PrefixExpression, error) {
 	switch p.currentToken.Type {
 	case lexer.TokenIdentifier:
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return NameVar{Name: name}, nil
+		return ast.NameVar{Name: name}, nil
 	case lexer.TokenLeftParen:
 		p.currentToken = p.lexer.NextToken()
 		exp, err := p.parseExpression()
@@ -179,19 +180,19 @@ func (p *Parser) parsePrefixExpressionHead() (PrefixExpression, error) {
 			return nil, errors.New("missing ')'")
 		}
 		p.currentToken = p.lexer.NextToken()
-		return exp.(PrefixExpression), nil
+		return exp.(ast.PrefixExpression), nil
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
 	}
 }
 
 // args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
-func (p *Parser) parseArgs() (Args, error) {
+func (p *Parser) parseArgs() (ast.Args, error) {
 	if p.currentToken.Type == lexer.TokenLeftParen {
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type == lexer.TokenRightParen {
 			p.currentToken = p.lexer.NextToken()
-			return &ExpressionList{Expressions: nil}, nil
+			return &ast.ExpressionList{Expressions: nil}, nil
 		}
 		explist, err := p.parseExpressionList()
 		if err != nil {
@@ -207,7 +208,7 @@ func (p *Parser) parseArgs() (Args, error) {
 	} else if p.currentToken.Type == lexer.TokenLiteralString {
 		str := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return &LiteralString{Value: str}, nil
+		return &ast.LiteralString{Value: str}, nil
 	}
 	return nil, fmt.Errorf("unexpected token: %s", p.currentToken.Type)
 }
@@ -218,19 +219,19 @@ func (p *Parser) parseArgs() (Args, error) {
 // functioncall ::= prefixexp args | prefixexp ‘:’ Name args
 // prefixexp ::= var  // for this case prefixexp is a Var
 // args ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString
-func (p *Parser) parseAssignmentOrFunctionCall() (Statement, error) {
+func (p *Parser) parseAssignmentOrFunctionCall() (ast.Statement, error) {
 	name := p.currentToken.Value
 	p.currentToken = p.lexer.NextToken()
 
-	prefix, err := p.parsePrefixExpressionTail(&NameVar{Name: name})
+	prefix, err := p.parsePrefixExpressionTail(&ast.NameVar{Name: name})
 	if err != nil {
 		return nil, err
 	}
 	switch prefix.(type) {
-	case *FunctionCall:
+	case *ast.FunctionCall:
 		return prefix, nil
-	case *NameVar, *MemberVar, *IndexedVar:
-		vars := []Var{prefix.(Var)}
+	case *ast.NameVar, *ast.MemberVar, *ast.IndexedVar:
+		vars := []ast.Var{prefix.(ast.Var)}
 		if p.currentToken.Type == lexer.TokenComma {
 			p.currentToken = p.lexer.NextToken()
 			vl, err := p.parseVarList()
@@ -247,7 +248,7 @@ func (p *Parser) parseAssignmentOrFunctionCall() (Statement, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Assignment{Vars: vars, Exps: exps}, nil
+		return &ast.Assignment{Vars: vars, Exps: exps}, nil
 	default:
 		return nil, fmt.Errorf("unexpected type: %T", prefix)
 	}
