@@ -7,6 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
 	"lua-interpreter/internal/parser"
 )
@@ -44,7 +45,7 @@ func main() {
 			fmt.Printf("Parsed Block: %+v\n", block)
 			for _, statement := range block.Statements {
 				fmt.Printf("Statement: %+v\n", statement)
-				if stmt, ok := statement.(*parser.BinaryOperatorExpression); ok {
+				if stmt, ok := statement.(*ast.BinaryOperatorExpression); ok {
 					fmt.Printf("Binary Operator: %s, Left: %s, Right: %s\n", stmt.Operator.Value, stmt.Left, stmt.Right)
 				}
 			}

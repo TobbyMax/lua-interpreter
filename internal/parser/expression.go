@@ -6,6 +6,7 @@ import (
 
 	"lua-interpreter/internal/ast"
 	"lua-interpreter/internal/lexer"
+	"lua-interpreter/internal/optimizer"
 )
 
 var (
@@ -197,11 +198,13 @@ func (p *Parser) parseBinaryExp(next func() (ast.Expression, error), tokenTypes 
 			if err != nil {
 				return nil, err
 			}
-			exp = &ast.BinaryOperatorExpression{
-				Operator: op,
-				Left:     exp,
-				Right:    right,
-			}
+			exp = optimizer.OptimizeBinary(op.Type)(
+				&ast.BinaryOperatorExpression{
+					Operator: op,
+					Left:     exp,
+					Right:    right,
+				},
+			)
 		}
 		return exp, nil
 	}
@@ -216,10 +219,12 @@ func (p *Parser) parseUnaryExp(next func() (ast.Expression, error), tokenTypes .
 			if err != nil {
 				return nil, err
 			}
-			return &ast.UnaryOperatorExpression{
-				Operator:   op,
-				Expression: exp,
-			}, nil
+			return optimizer.OptimizeUnary(op.Type)(
+				&ast.UnaryOperatorExpression{
+					Operator:   op,
+					Expression: exp,
+				},
+			), nil
 		}
 		return next()
 	}
