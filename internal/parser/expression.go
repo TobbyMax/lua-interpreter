@@ -47,6 +47,7 @@ var (
 func (p *Parser) parseExpression() (ast.Expression, error) {
 	var (
 		// Sets the priority of the operators (power - highest, or - lowest)
+		// https://www.lua.org/manual/5.3/manual.html#3.4.8
 		// 1 - power
 		parsePower = p.parseBinaryExp(p.parseExpressionBase, lexer.TokenPower)
 		// 2 - unary

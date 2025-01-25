@@ -1,3 +1,11 @@
+for i = 1, 10 do
+    print(i)
+end
+
+for i, j in pairs({1, 2, 3}) do
+    print(i)
+end
+
 print(table.a)
 table.b = func "a"
 
