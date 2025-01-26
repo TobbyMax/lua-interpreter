@@ -7,7 +7,7 @@ import (
 
 type TokenType int
 
-// https://www.lua.org/manual/5.3/manual.html#lua_load:~:text=3.1%20%E2%80%93%20Lexical%20Conventions
+// https://www.lua.org/manual/5.3/manual.html#3.1
 const (
 	TokenEOF TokenType = iota
 	// Operators and delimiters

@@ -108,6 +108,7 @@ func optimizeBitOperations(opType lexer.TokenType) BinaryOptimizer {
 	}
 }
 
+// https://www.lua.org/manual/5.3/manual.html#3.4.8
 func optimizeOr(expr *ast.BinaryOperatorExpression) ast.Expression {
 	if isTrue(expr.Left) {
 		return expr.Left
@@ -118,6 +119,7 @@ func optimizeOr(expr *ast.BinaryOperatorExpression) ast.Expression {
 	return expr
 }
 
+// https://www.lua.org/manual/5.3/manual.html#3.4.8
 func optimizeAnd(expr *ast.BinaryOperatorExpression) ast.Expression {
 	if isFalse(expr.Left) {
 		return expr.Left
