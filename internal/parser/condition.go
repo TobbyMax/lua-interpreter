@@ -41,6 +41,7 @@ func (p *Parser) parseIfStatement() (*ast.If, error) {
 			if p.currentToken.Type != lexer.TokenKeywordEnd {
 				return nil, errors.New("missing 'end' keyword")
 			}
+			p.currentToken = p.lexer.NextToken()
 			break
 		} else if p.currentToken.Type == lexer.TokenKeywordEnd {
 			p.currentToken = p.lexer.NextToken()
