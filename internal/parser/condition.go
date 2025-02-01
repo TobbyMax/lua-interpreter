@@ -7,12 +7,7 @@ import (
 	"lua-interpreter/internal/lexer"
 )
 
-type If struct {
-	Exps   []ast.Expression
-	Blocks []ast.Block
-}
-
-func (p *Parser) parseIfStatement() (*If, error) {
+func (p *Parser) parseIfStatement() (*ast.If, error) {
 	p.currentToken = p.lexer.NextToken()
 	var (
 		exps   []ast.Expression
@@ -54,5 +49,5 @@ func (p *Parser) parseIfStatement() (*If, error) {
 			return nil, errors.New("missing 'elseif', 'else' or 'end' keyword")
 		}
 	}
-	return &If{Exps: exps, Blocks: blocks}, nil
+	return &ast.If{Exps: exps, Blocks: blocks}, nil
 }

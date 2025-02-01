@@ -72,7 +72,7 @@ func (p *Parser) parseVarList() ([]ast.Var, error) {
 	}
 	name := p.currentToken.Value
 	p.currentToken = p.lexer.NextToken()
-	vars = append(vars, ast.NameVar{Name: name})
+	vars = append(vars, &ast.NameVar{Name: name})
 	for p.currentToken.Type == lexer.TokenComma {
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
@@ -80,7 +80,7 @@ func (p *Parser) parseVarList() ([]ast.Var, error) {
 		}
 		name = p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		vars = append(vars, ast.NameVar{Name: name})
+		vars = append(vars, &ast.NameVar{Name: name})
 	}
 	return vars, nil
 }

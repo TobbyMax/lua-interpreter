@@ -169,7 +169,7 @@ func (p *Parser) parsePrefixExpressionHead() (ast.PrefixExpression, error) {
 	case lexer.TokenIdentifier:
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
-		return ast.NameVar{Name: name}, nil
+		return &ast.NameVar{Name: name}, nil
 	case lexer.TokenLeftParen:
 		p.currentToken = p.lexer.NextToken()
 		exp, err := p.parseExpression()

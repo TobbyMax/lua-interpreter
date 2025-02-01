@@ -15,7 +15,9 @@ type (
 	}
 	// Var
 	// var ::=  Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
-	Var                 interface{}
+	Var interface {
+		Evaluable
+	}
 	LocalVarDeclaration struct {
 		Vars []string
 		Exps []Expression
@@ -33,6 +35,10 @@ type (
 	}
 	Do struct {
 		Block Block
+	}
+	If struct {
+		Exps   []Expression
+		Blocks []Block
 	}
 	// LocalFunction
 	// local function Name funcbody
@@ -56,5 +62,7 @@ type (
 	//	|  function funcname funcbody
 	//	|  local function Name funcbody
 	//	|  local namelist [‘=’ explist]
-	Statement interface{}
+	Statement interface {
+		Evaluable
+	}
 )

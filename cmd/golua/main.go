@@ -41,14 +41,17 @@ func main() {
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error parsing file: %s", err.Error()), -3)
 			}
-			// for debugging
-			fmt.Printf("Parsed Block: %+v\n", block)
-			for _, statement := range block.Statements {
-				fmt.Printf("Statement: %+v\n", statement)
-				if stmt, ok := statement.(*ast.BinaryOperatorExpression); ok {
-					fmt.Printf("Binary Operator: %s, Left: %s, Right: %s\n", stmt.Operator.Value, stmt.Left, stmt.Right)
-				}
-			}
+			//// for debugging
+			//fmt.Printf("Parsed Block: %+v\n", block)
+			//for _, statement := range block.Statements {
+			//	fmt.Printf("Statement: %+v\n", statement)
+			//	if stmt, ok := statement.(*ast.BinaryOperatorExpression); ok {
+			//		fmt.Printf("Binary Operator: %s, Left: %s, Right: %s\n", stmt.Operator.Value, stmt.Left, stmt.Right)
+			//	}
+			//}
+			val := block.Eval(ast.NewRootContext())
+
+			fmt.Printf("Evaluation Result: %+v", val)
 			return nil
 		},
 	}

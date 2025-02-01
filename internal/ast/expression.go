@@ -52,7 +52,9 @@ type (
 	}
 	// PrefixExpression
 	// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
-	PrefixExpression        interface{}
+	PrefixExpression interface {
+		Evaluable
+	}
 	UnaryOperatorExpression struct {
 		Operator   lexer.Token
 		Expression Expression
@@ -66,22 +68,12 @@ type (
 	// exp ::=  nil | false | true | Numeral | LiteralString | ‘...’
 	//       | functiondef | prefixexp | tableconstructor | opunary exp
 	//       | exp binop exp
-	Expression interface{}
-)
+	Expression interface {
+		Eval(ctx *Context) Value
+	}
 
-type (
 	NilExpression     struct{}
 	BooleanExpression struct {
 		Value bool
 	}
-
-	// ParameterList
-	// parlist ::= namelist [‘,’ ‘...’] | ‘...’
-
-	// ReturnStatement ::= return [explist] [‘;’]
-	// retstat ::= return [explist] [‘;’]
-
-	// Block
-	// block ::= { stat } [ retstat ]
-
 )
