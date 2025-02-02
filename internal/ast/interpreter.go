@@ -2,6 +2,7 @@ package ast
 
 import (
 	"math"
+	"strings"
 
 	"lua-interpreter/internal/lexer"
 )
@@ -226,48 +227,42 @@ func (b *Block) Eval(ctx *Context) Value {
 	return nil
 }
 
-type Func struct {
-	Params   []string
-	IsVarArg bool
-	Body     Block
-	Env      *Context
-}
-
 func (f *FunctionDefinition) Eval(ctx *Context) Value {
-	return &Func{
+	return &FunctionValue{
 		Params:   f.FunctionBody.ParameterList.Names,
 		IsVarArg: f.FunctionBody.ParameterList.IsVarArg,
 		Body:     f.FunctionBody.Block,
-		Env:      ctx, // Замыкание
 	}
 }
 
 func (fc *FunctionCall) Eval(ctx *Context) Value {
 	fnVal := fc.PrefixExp.Eval(ctx)
-	fn := fnVal.(*Func)
+	fn := fnVal.(*FunctionValue)
 
-	newCtx := &Context{
-		Variables: make(map[string]Value),
-		Parent:    fn.Env,
-	}
+	fnCtx := ctx.NewChild()
 
-	// Обработка аргументов
 	var args []Value
 	switch a := fc.Args.(type) {
-	case *ExpressionList:
-		for _, exp := range a.Expressions {
+	case []Expression:
+		for _, exp := range a {
 			args = append(args, exp.Eval(ctx))
 		}
+	case *TableConstructorExpression:
+		args = append(args, a.Eval(ctx))
+	case *LiteralString:
+		args = append(args, a.Value)
 	}
 
 	for i, name := range fn.Params {
 		if i < len(args) {
-			newCtx.Variables[name] = args[i]
+			fnCtx.Variables[name] = args[i]
+		} else {
+			fnCtx.Variables[name] = nil
 		}
 	}
 	// vararg может быть сохранён в `_VARARG` или аналоге
 
-	return fn.Body.Eval(newCtx)
+	return fn.Body.Eval(fnCtx)
 }
 
 func (s *EmptyStatement) Eval(ctx *Context) Value {
@@ -324,7 +319,6 @@ func (s *Assignment) Eval(ctx *Context) Value {
 }
 
 func (s *Label) Eval(ctx *Context) Value {
-	// Опционально сохраняйте метки в контексте
 	return nil
 }
 
@@ -342,11 +336,10 @@ func (s *Do) Eval(ctx *Context) Value {
 }
 
 func (s *LocalFunction) Eval(ctx *Context) Value {
-	fn := &Func{
+	fn := &FunctionValue{
 		Params:   s.FunctionBody.ParameterList.Names,
 		IsVarArg: s.FunctionBody.ParameterList.IsVarArg,
 		Body:     s.FunctionBody.Block,
-		Env:      ctx,
 	}
 	ctx.SetLocal(s.Name, fn)
 	return nil
@@ -411,7 +404,7 @@ func (s *For) Eval(ctx *Context) Value {
 }
 
 func (s *ForIn) Eval(ctx *Context) Value {
-	// предполагаем, что `Exps`[0] — это итератор-функция, `Exps`[1] — таблица, `Exps`[2] — инвариант
+	// todo:
 	iter := s.Exps[0].Eval(ctx).(func() (map[string]Value, bool))
 	for {
 		val, ok := iter()
@@ -462,36 +455,7 @@ type FunctionValue struct {
 	Params     []string
 	IsVarArg   bool
 	Body       Block
-	Env        *Context
-	MethodSelf string // если function используется с `:`, то имя self
-}
-
-type returnSignal struct {
-	Values []Value
-}
-
-func (f *FunctionValue) Call(ctx *Context, args []Value) Value {
-	callCtx := f.Env.NewChild()
-	for i, name := range f.Params {
-		if i < len(args) {
-			callCtx.SetLocal(name, args[i])
-		} else {
-			callCtx.SetLocal(name, nil)
-		}
-	}
-	if f.IsVarArg && len(args) > len(f.Params) {
-		callCtx.SetLocal("...", args[len(f.Params):])
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			if ret, ok := r.(returnSignal); ok {
-				// возвращённое значение
-				panic(ret)
-			}
-			panic(r)
-		}
-	}()
-	return f.Body.Eval(callCtx)
+	MethodSelf string
 }
 
 func (fb *FunctionBody) Eval(ctx *Context) Value {
@@ -499,41 +463,17 @@ func (fb *FunctionBody) Eval(ctx *Context) Value {
 		Params:   fb.ParameterList.Names,
 		IsVarArg: fb.ParameterList.IsVarArg,
 		Body:     fb.Block,
-		Env:      ctx,
 	}
 }
-
 func (f *Function) Eval(ctx *Context) Value {
 	fnVal := f.FuncBody.Eval(ctx).(*FunctionValue)
 
-	// Построение имени: a.b.c[:d]
-	name := f.FunctionName.FirstName
-	table := ctx.Get(name)
-
-	// Доступ к вложенным таблицам
-	for _, field := range f.FunctionName.Names {
-		if t, ok := table.(map[interface{}]Value); ok {
-			table = t[field]
-		} else {
-			panic("not a table in function name chain")
-		}
-	}
-
-	// Установка в таблицу
+	name := f.FunctionName.FirstName + strings.Join(f.FunctionName.Names, ".")
 	if f.FunctionName.LastName != "" {
-		fnVal.MethodSelf = f.FunctionName.FirstName // для вызова через :
-		if t, ok := table.(map[interface{}]Value); ok {
-			t[f.FunctionName.LastName] = fnVal
-		} else {
-			panic("cannot assign method to non-table")
-		}
-	} else {
-		if t, ok := table.(map[interface{}]Value); ok {
-			t[f.FunctionName.Names[len(f.FunctionName.Names)-1]] = fnVal
-		} else {
-			ctx.Set(f.FunctionName.FirstName, fnVal)
-		}
+		fnVal.MethodSelf = name
+		name += ":" + f.FunctionName.LastName
 	}
+	ctx.Set(name, fnVal)
 
 	return nil
 }
