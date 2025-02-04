@@ -14,8 +14,8 @@ import (
 
 func main() {
 	app := &cli.App{
-		Name:  "golua",
-		Usage: "GoLua - Lua Interpreter written in Go",
+		Name:  "gua",
+		Usage: "Gua - Lua Interpreter written in Go",
 		Action: func(c *cli.Context) error {
 			if c.NArg() < 1 {
 				return cli.Exit("Provide path to lua file", -1)
