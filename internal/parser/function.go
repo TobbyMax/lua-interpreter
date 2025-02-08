@@ -27,19 +27,12 @@ func (p *Parser) parseFunctionName() (ast.FunctionName, error) {
 	if p.currentToken.Type != lexer.TokenIdentifier {
 		return ast.FunctionName{}, errors.New("missing identifier")
 	}
-	name := p.currentToken.Value
+	isMethod := false
+	lastName := p.currentToken.Value
 	p.currentToken = p.lexer.NextToken()
 	var names []string
 	for p.currentToken.Type == lexer.TokenDot {
-		p.currentToken = p.lexer.NextToken()
-		if p.currentToken.Type != lexer.TokenIdentifier {
-			return ast.FunctionName{}, errors.New("missing identifier")
-		}
-		names = append(names, p.currentToken.Value)
-		p.currentToken = p.lexer.NextToken()
-	}
-	var lastName string
-	if p.currentToken.Type == lexer.TokenColon {
+		names = append(names, lastName)
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenIdentifier {
 			return ast.FunctionName{}, errors.New("missing identifier")
@@ -47,7 +40,17 @@ func (p *Parser) parseFunctionName() (ast.FunctionName, error) {
 		lastName = p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
 	}
-	return ast.FunctionName{FirstName: name, Names: names, LastName: lastName}, nil
+	if p.currentToken.Type == lexer.TokenColon {
+		isMethod = true
+		names = append(names, lastName)
+		p.currentToken = p.lexer.NextToken()
+		if p.currentToken.Type != lexer.TokenIdentifier {
+			return ast.FunctionName{}, errors.New("missing identifier")
+		}
+		lastName = p.currentToken.Value
+		p.currentToken = p.lexer.NextToken()
+	}
+	return ast.FunctionName{PrefixNames: names, Name: lastName, IsMethod: isMethod}, nil
 }
 
 func (p *Parser) parseFunctionBody() (ast.FunctionBody, error) {

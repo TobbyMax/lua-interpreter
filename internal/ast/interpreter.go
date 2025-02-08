@@ -186,6 +186,8 @@ func (u *UnaryOperatorExpression) Eval(ctx *Context) Value {
 
 func (t *TableConstructorExpression) Eval(ctx *Context) Value {
 	table := map[interface{}]Value{}
+	// Lua tables are 1-indexed by default
+	var index float64 = 1
 
 	for _, field := range t.Fields {
 		switch f := field.(type) {
@@ -198,7 +200,8 @@ func (t *TableConstructorExpression) Eval(ctx *Context) Value {
 			table[f.Name] = val
 		case *ExpressionField:
 			val := f.Value.Eval(ctx)
-			table[len(table)+1] = val // Lua-like array indexing
+			table[index] = val
+			index++
 		}
 	}
 
@@ -236,8 +239,33 @@ func (f *FunctionDefinition) Eval(ctx *Context) Value {
 }
 
 func (fc *FunctionCall) Eval(ctx *Context) Value {
-	fnVal := fc.PrefixExp.Eval(ctx)
-	fn := fnVal.(*FunctionValue)
+	prefixVal := fc.PrefixExp.Eval(ctx)
+	var (
+		fn           *FunctionValue
+		table        map[interface{}]Value
+		ok           bool
+		isMethodCall bool
+	)
+	if fc.Name != "" {
+		isMethodCall = true
+		if table, ok = prefixVal.(map[interface{}]Value); ok {
+			field, ok := table[fc.Name]
+			if !ok {
+				panic("undefined method: " + fc.Name)
+			}
+			fn, ok = field.(*FunctionValue)
+			if !ok {
+				panic("expected function for method: " + fc.Name)
+			}
+		} else {
+			panic("prefix expression is not a table for method call")
+		}
+	} else {
+		fn, ok = prefixVal.(*FunctionValue)
+		if !ok {
+			panic("expected function value for function call")
+		}
+	}
 
 	fnCtx := ctx.NewChild()
 
@@ -253,7 +281,12 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 		args = append(args, a.Value)
 	}
 
-	for i, name := range fn.Params {
+	params := fn.Params
+	if isMethodCall {
+		fnCtx.Variables[params[0]] = table
+		params = params[1:]
+	}
+	for i, name := range params {
 		if i < len(args) {
 			fnCtx.Variables[name] = args[i]
 		} else {
@@ -276,7 +309,11 @@ func (v *NameVar) Eval(ctx *Context) Value {
 func (v *IndexedVar) Eval(ctx *Context) Value {
 	table := v.PrefixExp.Eval(ctx).(map[interface{}]Value)
 	key := v.Exp.Eval(ctx)
-	return table[key]
+	val, ok := table[key]
+	if !ok {
+		return nil
+	}
+	return val
 }
 
 func (v *MemberVar) Eval(ctx *Context) Value {
@@ -452,10 +489,10 @@ func isTruthy(val Value) bool {
 }
 
 type FunctionValue struct {
-	Params     []string
-	IsVarArg   bool
-	Body       Block
-	MethodSelf string
+	Params   []string
+	IsVarArg bool
+	Body     Block
+	isMethod bool
 }
 
 func (fb *FunctionBody) Eval(ctx *Context) Value {
@@ -468,12 +505,27 @@ func (fb *FunctionBody) Eval(ctx *Context) Value {
 func (f *Function) Eval(ctx *Context) Value {
 	fnVal := f.FuncBody.Eval(ctx).(*FunctionValue)
 
-	name := f.FunctionName.FirstName + strings.Join(f.FunctionName.Names, ".")
-	if f.FunctionName.LastName != "" {
-		fnVal.MethodSelf = name
-		name += ":" + f.FunctionName.LastName
+	if len(f.FunctionName.PrefixNames) > 0 {
+		table := ctx.Get(f.FunctionName.PrefixNames[0]).(map[interface{}]Value)
+		for _, name := range f.FunctionName.PrefixNames[1:] {
+			if field, ok := table[name]; ok {
+				if innerTable, ok := field.(map[interface{}]Value); ok {
+					table = innerTable
+				} else {
+					panic("expected table for function prefix")
+				}
+			} else {
+				panic("undefined prefix in function name: " + strings.Join(f.FunctionName.PrefixNames, "."))
+			}
+		}
+		if f.FunctionName.IsMethod {
+			fnVal.Params = append([]string{"self"}, fnVal.Params...)
+			fnVal.isMethod = true
+		}
+		table[f.FunctionName.Name] = fnVal
+	} else {
+		ctx.Set(f.FunctionName.Name, fnVal)
 	}
-	ctx.Set(name, fnVal)
 
 	return nil
 }

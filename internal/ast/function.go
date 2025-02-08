@@ -10,9 +10,9 @@ type (
 	// FunctionName
 	// funcname ::= Name {‘.’ Name} [‘:’ Name]
 	FunctionName struct {
-		FirstName string
-		Names     []string
-		LastName  string
+		PrefixNames []string
+		Name        string
+		IsMethod    bool // true if it has a colon
 	}
 	// Function
 	// function funcname funcbody

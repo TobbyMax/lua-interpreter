@@ -108,7 +108,6 @@ func (p *Parser) parseExpressionBase() (ast.Expression, error) {
 		p.currentToken = p.lexer.NextToken()
 		return &ast.VarArgExpression{}, nil
 	case lexer.TokenKeywordFunction:
-		p.currentToken = p.lexer.NextToken()
 		return p.parseFunctionDefinition()
 	case lexer.TokenIdentifier, lexer.TokenLeftParen:
 		return p.parsePrefixExpression()
