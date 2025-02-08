@@ -1,6 +1,8 @@
 package lexer
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -323,40 +325,63 @@ func (l *Lexer) nextToken() Token {
 				token = Token{TokenNumeral, input[start:i]}
 			}
 		case ch == '"':
-			var str string
+			raw := input[i : i+1]
+			start := i
 			i++
 			for i < len(input) && input[i] != '"' {
-				if input[i] == '\\' {
-					if i+1 < len(input) && input[i+1] == '"' {
-						i++
-					}
+				if input[i] == '\n' {
+					token = Token{TokenError, fmt.Sprintf("Unterminated string literal: %s", input[start:i])}
+					break
 				}
-				str += input[i : i+1]
-				i++
-			}
-			if i < len(input) {
-				i++
-				token = Token{TokenLiteralString, str}
-			} else {
-				token = Token{TokenError, str}
-			}
-		case ch == '\'':
-			var str string
-			i++
-			for i < len(input) && input[i] != '\'' {
 				if input[i] == '\\' {
 					if i+1 < len(input) && input[i+1] == '\'' {
 						i++
 					}
 				}
-				str += input[i : i+1]
+				raw += input[i : i+1]
 				i++
 			}
 			if i < len(input) {
+				raw += input[i : i+1]
 				i++
-				token = Token{TokenLiteralString, str}
+				parsed, err := strconv.Unquote(raw)
+				if err != nil {
+					token = Token{TokenError, fmt.Sprintf("Error unquoting string %s: %s", raw, err.Error())}
+				} else {
+					token = Token{TokenLiteralString, parsed}
+				}
 			} else {
-				token = Token{TokenError, str}
+				token = Token{TokenError, input[start:i]}
+			}
+		case ch == '\'':
+			raw := input[i : i+1]
+			start := i
+			i++
+			for i < len(input) && input[i] != '\'' {
+				if input[i] == '\n' {
+					token = Token{TokenError, fmt.Sprintf("Unterminated string literal: %s", input[start:i])}
+					break
+				}
+				if input[i] == '\\' {
+					if i+1 < len(input) && input[i+1] == '\'' {
+						i++
+					}
+				}
+				raw += input[i : i+1]
+				i++
+			}
+			if i < len(input) {
+				raw += input[i : i+1]
+				i++
+				converted := `"` + strings.Trim(raw, `'`) + `"`
+				parsed, err := strconv.Unquote(converted)
+				if err != nil {
+					token = Token{TokenError, fmt.Sprintf("Error unquoting string %s: %s", converted, err.Error())}
+				} else {
+					token = Token{TokenLiteralString, parsed}
+				}
+			} else {
+				token = Token{TokenError, input[start:i]}
 			}
 		case ch == '+':
 			token = Token{TokenPlus, string(ch)}

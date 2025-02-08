@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"lua-interpreter/internal/ast"
@@ -114,7 +115,7 @@ func (p *Parser) parseExpressionBase() (ast.Expression, error) {
 	case lexer.TokenLeftBrace:
 		return p.parseTableConstructor()
 	default:
-		return nil, errors.New("unexpected token: " + p.currentToken.Type.String())
+		return nil, fmt.Errorf("unexpected token: [%s] %s", p.currentToken.Type, p.currentToken.Value)
 	}
 }
 
