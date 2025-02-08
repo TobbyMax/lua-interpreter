@@ -323,7 +323,7 @@ func (l *Lexer) nextToken() Token {
 				token = Token{TokenNumeral, input[start:i]}
 			}
 		case ch == '"':
-			start := i
+			var str string
 			i++
 			for i < len(input) && input[i] != '"' {
 				if input[i] == '\\' {
@@ -331,28 +331,32 @@ func (l *Lexer) nextToken() Token {
 						i++
 					}
 				}
+				str += input[i : i+1]
 				i++
 			}
 			if i < len(input) {
 				i++
-				token = Token{TokenLiteralString, input[start:i]}
+				token = Token{TokenLiteralString, str}
 			} else {
-				token = Token{TokenError, input[start:i]}
+				token = Token{TokenError, str}
 			}
 		case ch == '\'':
-			start := i
+			var str string
 			i++
 			for i < len(input) && input[i] != '\'' {
-				if i+1 < len(input) && input[i+1] == '"' {
-					i++
+				if input[i] == '\\' {
+					if i+1 < len(input) && input[i+1] == '\'' {
+						i++
+					}
 				}
+				str += input[i : i+1]
 				i++
 			}
 			if i < len(input) {
 				i++
-				token = Token{TokenLiteralString, input[start:i]}
+				token = Token{TokenLiteralString, str}
 			} else {
-				token = Token{TokenError, input[start:i]}
+				token = Token{TokenError, str}
 			}
 		case ch == '+':
 			token = Token{TokenPlus, string(ch)}
