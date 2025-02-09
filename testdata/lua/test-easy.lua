@@ -36,12 +36,20 @@ function table.r.AddToC(r, x)
     return r.c
 end
 
+function table.r.AddToC(r, x)
+    r.c = r.c + x
+    return r.c
+end
+
 function table.r.d:AddToE(x)
     self.e = self.e + x
     return self.e
 end
 
--- return a.hello()
+print(a.hello())
+print(table.r.Sub(10, 5))
+print(table.r.AddToC(table.r, 3))
+print(table.r.d:AddToE(2))
 
 a = 2
 b = 4
@@ -87,6 +95,7 @@ local div = function(a, b)
     return a / b
 end
 
+
 -- local t = {name = "Lua", version = 5.4, isAwesome = true}
 -- local f, s, var = pairs(t)
 -- print(f)     --> function: 0x...
@@ -99,4 +108,34 @@ end
 --   var = k
 -- end
 --
+
+s = 1
+:: label1 ::
+
+if s < 4 then
+    if s == 3 then
+        goto label2
+    end
+    s = s + 1
+else
+    goto label2
+end
+
+
+goto label1
+
+:: label2 ::
+
+print(s)
+
+
+for i = 1, 10 do
+    if i == 7 then
+        goto skip
+    end
+    print(i)
+end
+
+:: skip ::
+
 return add(a, b, c)

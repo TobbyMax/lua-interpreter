@@ -69,7 +69,7 @@ type (
 	//       | functiondef | prefixexp | tableconstructor | opunary exp
 	//       | exp binop exp
 	Expression interface {
-		Eval(ctx *Context) Value
+		Eval(ctx *Context) (Value, error)
 	}
 
 	NilExpression     struct{}

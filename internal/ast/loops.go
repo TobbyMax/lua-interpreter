@@ -13,7 +13,7 @@ type (
 		Name  string
 		Init  Expression
 		Limit Expression
-		Step  *Expression
+		Step  Expression
 		Block Block
 	}
 	ForIn struct {

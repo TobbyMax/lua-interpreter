@@ -88,14 +88,14 @@ func (p *Parser) parseForStatementWithName(name string) (*ast.For, error) {
 	if err != nil {
 		return nil, err
 	}
-	var step *ast.Expression
+	var step ast.Expression
 	if p.currentToken.Type == lexer.TokenComma {
 		p.currentToken = p.lexer.NextToken()
 		stepExp, err := p.parseExpression()
 		if err != nil {
 			return nil, err
 		}
-		step = &stepExp
+		step = stepExp
 	}
 	if p.currentToken.Type != lexer.TokenKeywordDo {
 		return nil, errors.New("missing 'do' keyword")

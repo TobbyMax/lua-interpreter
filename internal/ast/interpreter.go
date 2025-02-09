@@ -1,12 +1,30 @@
 package ast
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
 
 	"lua-interpreter/internal/lexer"
 )
+
+var (
+	ErrBreak                = errors.New("break statement outside of loop")
+	ErrBitwiseAndOnlyInt    = errors.New("bitwise AND can only be applied to integers")
+	ErrBitwiseOrOnlyInt     = errors.New("bitwise OR can only be applied to integers")
+	ErrUnaryMinusOnlyNum    = errors.New("unary minus can only be applied to numbers")
+	ErrBitwiseNotOnlyInt    = errors.New("bitwise NOT can only be applied to integers")
+	ErrInvalidOperandLength = errors.New("invalid operand for # operator")
+)
+
+type GotoError struct {
+	Label string
+}
+
+func (e *GotoError) Error() string {
+	return fmt.Sprintf("no visible label '%s' for <goto>", e.Label)
+}
 
 type Value interface{}
 
@@ -15,12 +33,14 @@ type Context struct {
 	Return    Value // для возврата из функций
 	Variables map[string]Value
 	globals   map[string]Value // только в корне
+	labels    map[string]int   // для меток goto
 }
 
 func NewRootContext() *Context {
 	ctx := &Context{
 		Variables: make(map[string]Value),
 		globals:   make(map[string]Value),
+		labels:    make(map[string]int),
 	}
 	ctx.Set("print", printFn)
 	ctx.Set("assert", assertFn)
@@ -33,6 +53,7 @@ func (ctx *Context) NewChild() *Context {
 		Parent:    ctx,
 		Variables: make(map[string]Value),
 		globals:   ctx.globals,
+		labels:    make(map[string]int),
 	}
 }
 
@@ -49,7 +70,7 @@ func (ctx *Context) Get(name string) Value {
 	if val, ok := ctx.globals[name]; ok {
 		return val
 	}
-	panic("undefined variable: " + name)
+	return nil
 }
 
 func (ctx *Context) Set(name string, val Value) {
@@ -63,133 +84,133 @@ func (ctx *Context) Set(name string, val Value) {
 }
 
 type Evaluable interface {
-	Eval(ctx *Context) Value
+	Eval(ctx *Context) (Value, error)
 }
 
-func (n *NumeralExpression) Eval(ctx *Context) Value {
-	return n.Value
+func (n *NumeralExpression) Eval(_ *Context) (Value, error) {
+	return n.Value, nil
 }
 
-func (s *LiteralString) Eval(ctx *Context) Value {
-	return s.Value
+func (s *LiteralString) Eval(_ *Context) (Value, error) {
+	return s.Value, nil
 }
 
-func (b *BooleanExpression) Eval(ctx *Context) Value {
-	return b.Value
+func (b *BooleanExpression) Eval(_ *Context) (Value, error) {
+	return b.Value, nil
 }
 
-func (n *NilExpression) Eval(ctx *Context) Value {
-	return nil
+func (n *NilExpression) Eval(_ *Context) (Value, error) {
+	return nil, nil
 }
 
-func (v *VarArgExpression) Eval(ctx *Context) Value {
+func (v *VarArgExpression) Eval(_ *Context) (Value, error) {
 	panic("vararg not implemented in this context")
 }
 
-func (b *BinaryOperatorExpression) Eval(ctx *Context) Value {
-	left := b.Left.Eval(ctx)
-	right := b.Right.Eval(ctx)
+func (b *BinaryOperatorExpression) Eval(ctx *Context) (Value, error) {
+	left, _ := b.Left.Eval(ctx)
+	right, _ := b.Right.Eval(ctx)
 
 	switch b.Operator.Type {
 	// Arithmetic operations
 	case lexer.TokenPlus:
-		return left.(float64) + right.(float64)
+		return left.(float64) + right.(float64), nil
 	case lexer.TokenMinus:
-		return left.(float64) - right.(float64)
+		return left.(float64) - right.(float64), nil
 	case lexer.TokenMult:
-		return left.(float64) * right.(float64)
+		return left.(float64) * right.(float64), nil
 	case lexer.TokenDiv:
-		return left.(float64) / right.(float64)
+		return left.(float64) / right.(float64), nil
 	case lexer.TokenIntDiv:
-		return float64(int(left.(float64)) / int(right.(float64)))
+		return float64(int(left.(float64)) / int(right.(float64))), nil
 	case lexer.TokenMod:
-		return float64(int(left.(float64)) % int(right.(float64)))
+		return float64(int(left.(float64)) % int(right.(float64))), nil
 	case lexer.TokenPower:
-		return math.Pow(left.(float64), right.(float64))
+		return math.Pow(left.(float64), right.(float64)), nil
 	case lexer.TokenDoubleDot:
-		return left.(string) + right.(string)
+		return left.(string) + right.(string), nil
 	// Comparison operations
 	case lexer.TokenEqual:
-		return left == right
+		return left == right, nil
 	case lexer.TokenNotEqual:
-		return left != right
+		return left != right, nil
 	case lexer.TokenLess:
-		return left.(float64) < right.(float64)
+		return left.(float64) < right.(float64), nil
 	case lexer.TokenLessEqual:
-		return left.(float64) <= right.(float64)
+		return left.(float64) <= right.(float64), nil
 	case lexer.TokenMore:
-		return left.(float64) > right.(float64)
+		return left.(float64) > right.(float64), nil
 	case lexer.TokenMoreEqual:
-		return left.(float64) >= right.(float64)
+		return left.(float64) >= right.(float64), nil
 	// Logical operations
 	case lexer.TokenKeywordAnd:
-		return left.(bool) && right.(bool)
+		return left.(bool) && right.(bool), nil
 	case lexer.TokenKeywordOr:
-		return left.(bool) || right.(bool)
+		return left.(bool) || right.(bool), nil
 	// Bitwise operations
 	case lexer.TokenBinAnd:
 		if numLeft, ok := left.(float64); ok {
 			if numRight, ok := right.(float64); ok {
 				if math.Trunc(numLeft) != numLeft || math.Trunc(numRight) != numRight {
-					panic("bitwise AND can only be applied to integers")
+					return nil, ErrBitwiseAndOnlyInt
 				}
-				return float64(int64(numLeft) & int64(numRight))
+				return float64(int64(numLeft) & int64(numRight)), nil
 			}
 		}
-		panic("bitwise AND can only be applied to integers")
+		return nil, ErrBitwiseAndOnlyInt
 	case lexer.TokenBinOr:
 		if numLeft, ok := left.(float64); ok {
 			if numRight, ok := right.(float64); ok {
 				if math.Trunc(numLeft) != numLeft || math.Trunc(numRight) != numRight {
-					panic("bitwise OR can only be applied to integers")
+					return nil, ErrBitwiseOrOnlyInt
 				}
-				return float64(int64(numLeft) | int64(numRight))
+				return float64(int64(numLeft) | int64(numRight)), nil
 			}
 		}
-		panic("bitwise OR can only be applied to integers")
+		return nil, ErrBitwiseOrOnlyInt
 	default:
-		panic("unknown binary operator: " + b.Operator.Type.String())
+		return nil, fmt.Errorf("unknown binary operator: %s", b.Operator.Type.String())
 	}
 }
 
-func (u *UnaryOperatorExpression) Eval(ctx *Context) Value {
-	val := u.Expression.Eval(ctx)
+func (u *UnaryOperatorExpression) Eval(ctx *Context) (Value, error) {
+	val, _ := u.Expression.Eval(ctx)
 
 	switch u.Operator.Type {
 	case lexer.TokenNot:
 		if val.(bool) == false {
-			return true
+			return true, nil
 		}
-		return false
+		return false, nil
 	case lexer.TokenMinus:
 		if num, ok := val.(float64); ok {
-			return -num
+			return -num, nil
 		}
-		panic("unary minus can only be applied to numbers")
+		return nil, ErrUnaryMinusOnlyNum
 	case lexer.TokenTilde:
 		if num, ok := val.(float64); ok {
 			if math.Trunc(num) != num {
-				panic("operand has a non-integer value in bitwise NOT operation")
+				return nil, ErrBitwiseNotOnlyInt
 			}
-			return float64(^int64(num))
+			return float64(^int64(num)), nil
 		}
-		panic("bitwise NOT can only be applied to integers")
+		return nil, ErrBitwiseNotOnlyInt
 	case lexer.TokenHash:
 		if str, ok := val.(string); ok {
-			return float64(len(str))
+			return float64(len(str)), nil
 		} else if tbl, ok := val.(map[string]Value); ok {
-			return float64(len(tbl))
+			return float64(len(tbl)), nil
 		} else if arr, ok := val.([]Value); ok {
-			return float64(len(arr))
+			return float64(len(arr)), nil
 		} else {
-			panic("invalid operand for # operator")
+			return nil, ErrInvalidOperandLength
 		}
 	default:
-		panic("unknown unary operator: " + u.Operator.Type.String())
+		return nil, fmt.Errorf("unknown unary operator: %s", u.Operator.Type.String())
 	}
 }
 
-func (t *TableConstructorExpression) Eval(ctx *Context) Value {
+func (t *TableConstructorExpression) Eval(ctx *Context) (Value, error) {
 	table := map[interface{}]Value{}
 	// Lua tables are 1-indexed by default
 	var index float64 = 1
@@ -197,54 +218,77 @@ func (t *TableConstructorExpression) Eval(ctx *Context) Value {
 	for _, field := range t.Fields {
 		switch f := field.(type) {
 		case *ExpToExpField:
-			key := f.Key.Eval(ctx)
-			val := f.Value.Eval(ctx)
+			key, _ := f.Key.Eval(ctx)
+			val, _ := f.Value.Eval(ctx)
 			table[key] = val
 		case *NameField:
-			val := f.Value.Eval(ctx)
+			val, _ := f.Value.Eval(ctx)
 			table[f.Name] = val
 		case *ExpressionField:
-			val := f.Value.Eval(ctx)
+			val, _ := f.Value.Eval(ctx)
 			table[index] = val
 			index++
 		}
 	}
 
-	return table
+	return table, nil
 }
 
-func (b *Block) Eval(ctx *Context) Value {
-	for _, stmt := range b.Statements {
-		stmt.Eval(ctx)
+func (b *Block) Eval(ctx *Context) (Value, error) {
+	for i, stmt := range b.Statements {
+		if l, ok := stmt.(*Label); ok {
+			ctx.labels[l.Name] = i
+		}
+	}
+	for i := 0; i < len(b.Statements); i++ {
+		stmt := b.Statements[i]
+		_, err := stmt.Eval(ctx)
+		if err != nil {
+			var gotoErr *GotoError
+			if errors.As(err, &gotoErr) {
+				if labelIndex, ok := ctx.labels[gotoErr.Label]; ok {
+					i = labelIndex // Переход к метке
+					continue
+				} else {
+					return nil, err
+				}
+			}
+			return nil, fmt.Errorf("error evaluating statement: %w", err)
+		}
+
 		if ctx.Return != nil {
-			return ctx.Return
+			return ctx.Return, nil
 		}
 	}
 	if b.ReturnStatement != nil {
 		var vals []Value
 		for _, exp := range b.ReturnStatement.Expressions {
-			vals = append(vals, exp.Eval(ctx))
+			val, err := exp.Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating return expression: %w", err)
+			}
+			vals = append(vals, val)
 		}
 		if len(vals) == 1 {
 			ctx.Return = vals[0]
 		} else {
 			ctx.Return = vals // Можно сделать многозначный return как в Lua
 		}
-		return ctx.Return
+		return ctx.Return, nil
 	}
-	return nil
+	return nil, nil
 }
 
-func (f *FunctionDefinition) Eval(ctx *Context) Value {
+func (f *FunctionDefinition) Eval(ctx *Context) (Value, error) {
 	return &FunctionValue{
 		Params:   f.FunctionBody.ParameterList.Names,
 		IsVarArg: f.FunctionBody.ParameterList.IsVarArg,
 		Body:     f.FunctionBody.Block,
-	}
+	}, nil
 }
 
-func (fc *FunctionCall) Eval(ctx *Context) Value {
-	prefixVal := fc.PrefixExp.Eval(ctx)
+func (fc *FunctionCall) Eval(ctx *Context) (Value, error) {
+	prefixVal, _ := fc.PrefixExp.Eval(ctx)
 	var (
 		fn           *FunctionValue
 		fnNative     *NativeFunction
@@ -257,14 +301,14 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 		if table, ok = prefixVal.(map[interface{}]Value); ok {
 			field, ok := table[fc.Name]
 			if !ok {
-				panic("undefined method: " + fc.Name)
+				return nil, fmt.Errorf("undefined method '%s' for table", fc.Name)
 			}
 			fn, ok = field.(*FunctionValue)
 			if !ok {
-				panic("expected function for method: " + fc.Name)
+				return nil, fmt.Errorf("expected function for method '%s', got: %T", fc.Name, field)
 			}
 		} else {
-			panic("prefix expression is not a table for method call")
+			return nil, fmt.Errorf("prefix expression is not a table for method call: %T", prefixVal)
 		}
 	} else {
 		switch val := prefixVal.(type) {
@@ -273,7 +317,7 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 		case *FunctionValue:
 			fn = val
 		default:
-			panic("expected function or native function for function call, got: " + fmt.Sprintf("%T", prefixVal))
+			return nil, fmt.Errorf("expected function or native function for function call, got: %T", prefixVal)
 		}
 	}
 
@@ -283,16 +327,24 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 	switch a := fc.Args.(type) {
 	case []Expression:
 		for _, exp := range a {
-			args = append(args, exp.Eval(ctx))
+			val, err := exp.Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating argument: %w", err)
+			}
+			args = append(args, val)
 		}
 	case *TableConstructorExpression:
-		args = append(args, a.Eval(ctx))
+		t, err := a.Eval(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating table constructor: %w", err)
+		}
+		args = append(args, t)
 	case *LiteralString:
 		args = append(args, a.Value)
 	}
 
 	if fnNative != nil {
-		return fnNative.Call(fnCtx, args)
+		return fnNative.Call(fnCtx, args), nil
 	}
 
 	params := fn.Params
@@ -312,151 +364,218 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 	return fn.Body.Eval(fnCtx)
 }
 
-func (s *EmptyStatement) Eval(ctx *Context) Value {
-	return nil
+func (s *EmptyStatement) Eval(ctx *Context) (Value, error) {
+	return nil, nil
 }
 
-func (v *NameVar) Eval(ctx *Context) Value {
-	return ctx.Get(v.Name)
+func (v *NameVar) Eval(ctx *Context) (Value, error) {
+	return ctx.Get(v.Name), nil
 }
 
-func (v *IndexedVar) Eval(ctx *Context) Value {
-	table := v.PrefixExp.Eval(ctx).(map[interface{}]Value)
-	key := v.Exp.Eval(ctx)
+func (v *IndexedVar) Eval(ctx *Context) (Value, error) {
+	var table map[interface{}]Value
+	prefix, err := v.PrefixExp.Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error evaluating prefix expression: %w", err)
+	}
+	if tbl, ok := prefix.(map[interface{}]Value); !ok {
+		return nil, fmt.Errorf("expected table for indexed variable, got: %T", table)
+	} else {
+		table = tbl
+	}
+	key, _ := v.Exp.Eval(ctx)
 	val, ok := table[key]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return val
+	return val, nil
 }
 
-func (v *MemberVar) Eval(ctx *Context) Value {
-	table := v.PrefixExp.Eval(ctx).(map[interface{}]Value)
-	return table[v.Name]
+func (v *MemberVar) Eval(ctx *Context) (Value, error) {
+	var table map[interface{}]Value
+	prefix, err := v.PrefixExp.Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error evaluating prefix expression: %w", err)
+	}
+	if tbl, ok := prefix.(map[interface{}]Value); !ok {
+		return nil, fmt.Errorf("expected table for member variable, got: %T", table)
+	} else {
+		table = tbl
+	}
+	return table[v.Name], nil
 }
 
-func (s *LocalVarDeclaration) Eval(ctx *Context) Value {
+func (s *LocalVarDeclaration) Eval(ctx *Context) (Value, error) {
 	for i, name := range s.Vars {
 		if i < len(s.Exps) {
-			ctx.SetLocal(name, s.Exps[i].Eval(ctx))
+			val, err := s.Exps[i].Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating local variable %s: %w", name, err)
+			}
+			ctx.SetLocal(name, val)
 		} else {
 			ctx.SetLocal(name, nil)
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *Assignment) Eval(ctx *Context) Value {
+func (s *Assignment) Eval(ctx *Context) (Value, error) {
 	for i, v := range s.Vars {
 		var val Value
 		if i < len(s.Exps) {
-			val = s.Exps[i].Eval(ctx)
+			val, _ = s.Exps[i].Eval(ctx)
 		}
 		switch varExpr := v.(type) {
 		case *NameVar:
 			ctx.Set(varExpr.Name, val)
 		case *IndexedVar:
-			table := varExpr.PrefixExp.Eval(ctx).(map[interface{}]Value)
-			key := varExpr.Exp.Eval(ctx)
+			prefix, err := varExpr.PrefixExp.Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating indexed variable prefix: %w", err)
+			}
+			table, ok := prefix.(map[interface{}]Value)
+			if !ok {
+				return nil, fmt.Errorf("expected table for indexed variable, got: %T", prefix)
+			}
+			key, _ := varExpr.Exp.Eval(ctx)
 			table[key] = val
 		case *MemberVar:
-			table := varExpr.PrefixExp.Eval(ctx).(map[interface{}]Value)
+			prefix, err := varExpr.PrefixExp.Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating member variable prefix: %w", err)
+			}
+			table, ok := prefix.(map[interface{}]Value)
+			if !ok {
+				return nil, fmt.Errorf("expected table for member variable, got: %T", prefix)
+			}
 			table[varExpr.Name] = val
 		default:
-			panic("unsupported assignment target")
+			return nil, fmt.Errorf("unknown variable type in assignment: %T", v)
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *Label) Eval(ctx *Context) Value {
-	return nil
+func (s *Label) Eval(_ *Context) (Value, error) {
+	return nil, nil
 }
 
-func (s *Goto) Eval(ctx *Context) Value {
-	panic("goto not implemented")
+func (s *Goto) Eval(_ *Context) (Value, error) {
+	return nil, &GotoError{Label: s.Name}
 }
 
-func (s *Break) Eval(ctx *Context) Value {
-	panic("break")
+func (s *Break) Eval(_ *Context) (Value, error) {
+	return nil, ErrBreak
 }
 
-func (s *Do) Eval(ctx *Context) Value {
+func (s *Do) Eval(ctx *Context) (Value, error) {
 	newCtx := ctx.NewChild()
 	return s.Block.Eval(newCtx)
 }
 
-func (s *LocalFunction) Eval(ctx *Context) Value {
+func (s *LocalFunction) Eval(ctx *Context) (Value, error) {
 	fn := &FunctionValue{
 		Params:   s.FunctionBody.ParameterList.Names,
 		IsVarArg: s.FunctionBody.ParameterList.IsVarArg,
 		Body:     s.FunctionBody.Block,
 	}
 	ctx.SetLocal(s.Name, fn)
-	return nil
+	return nil, nil
 }
 
-func (s *While) Eval(ctx *Context) Value {
+func (s *While) Eval(ctx *Context) (Value, error) {
 	for {
-		cond := s.Exp.Eval(ctx).(bool)
-		if !cond {
+		cond, err := s.Exp.Eval(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating while condition: %w", err)
+		}
+		if !isTruthy(cond) {
 			break
 		}
-		func() {
-			defer func() {
-				if r := recover(); r != nil && r != "break" {
-					panic(r)
-				}
-			}()
-			s.Block.Eval(ctx.NewChild())
-		}()
+		_, err = s.Block.Eval(ctx.NewChild())
+		if errors.Is(err, ErrBreak) {
+			break // прерывание цикла
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating while block: %w", err)
+		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *Repeat) Eval(ctx *Context) Value {
+func (s *Repeat) Eval(ctx *Context) (Value, error) {
 	for {
-		func() {
-			defer func() {
-				if r := recover(); r != nil && r != "break" {
-					panic(r)
-				}
-			}()
-			s.Block.Eval(ctx.NewChild())
-		}()
-		cond := s.Exp.Eval(ctx).(bool)
-		if cond {
+		_, err := s.Block.Eval(ctx.NewChild())
+		if errors.Is(err, ErrBreak) {
+			break // прерывание цикла
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating repeat block: %w", err)
+		}
+		cond, err := s.Exp.Eval(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating repeat condition: %w", err)
+		}
+		if isTruthy(cond) {
 			break
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *For) Eval(ctx *Context) Value {
-	init := s.Init.Eval(ctx).(float64)
-	limit := s.Limit.Eval(ctx).(float64)
+func (s *For) Eval(ctx *Context) (Value, error) {
+	val, err := s.Init.Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error evaluating for loop init: %w", err)
+	}
+	init, ok := val.(float64)
+	if !ok {
+		return nil, fmt.Errorf("expected numeric value for for loop init, got: %T", val)
+	}
+	val, err = s.Limit.Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error evaluating for loop limit: %w", err)
+	}
+	limit, ok := val.(float64)
+	if !ok {
+		return nil, fmt.Errorf("expected numeric value for for loop limit, got: %T", val)
+	}
 	step := 1.0
 	if s.Step != nil {
-		step = (*s.Step).Eval(ctx).(float64)
+		val, err = s.Step.Eval(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating for loop step: %w", err)
+		}
+		step, ok = val.(float64)
+		if !ok {
+			return nil, fmt.Errorf("expected numeric value for for loop step, got: %T", val)
+		}
 	}
 	for i := init; (step > 0 && i <= limit) || (step < 0 && i >= limit); i += step {
 		loopCtx := ctx.NewChild()
 		loopCtx.SetLocal(s.Name, i)
-		func() {
-			defer func() {
-				if r := recover(); r != nil && r != "break" {
-					panic(r)
-				}
-			}()
-			s.Block.Eval(loopCtx)
-		}()
+		_, err = s.Block.Eval(loopCtx)
+		if errors.Is(err, ErrBreak) {
+			break // прерывание цикла
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating for loop body: %w", err)
+		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *ForIn) Eval(ctx *Context) Value {
+func (s *ForIn) Eval(ctx *Context) (Value, error) {
 	// todo:
-	iter := s.Exps[0].Eval(ctx).(func() (map[string]Value, bool))
+	val, err := s.Exps[0].Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error evaluating for-in iterator: %w", err)
+	}
+	iter, ok := val.(func() (map[string]Value, bool))
+	if !ok {
+		return nil, fmt.Errorf("expected iterator function for for-in loop, got: %T", val)
+	}
 	for {
 		val, ok := iter()
 		if !ok {
@@ -466,21 +585,24 @@ func (s *ForIn) Eval(ctx *Context) Value {
 		for _, name := range s.Names {
 			loopCtx.SetLocal(name, val[name]) // упрощённо
 		}
-		func() {
-			defer func() {
-				if r := recover(); r != nil && r != "break" {
-					panic(r)
-				}
-			}()
-			s.Block.Eval(loopCtx)
-		}()
+		_, err := s.Block.Eval(loopCtx)
+		if errors.Is(err, ErrBreak) {
+			break // прерывание цикла
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating for-in loop body: %w", err)
+		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *If) Eval(ctx *Context) Value {
+func (s *If) Eval(ctx *Context) (Value, error) {
 	for i, cond := range s.Exps {
-		if isTruthy(cond.Eval(ctx)) {
+		res, err := cond.Eval(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error evaluating if condition: %w", err)
+		}
+		if isTruthy(res) {
 			return s.Blocks[i].Eval(ctx.NewChild())
 		}
 	}
@@ -488,7 +610,7 @@ func (s *If) Eval(ctx *Context) Value {
 	if len(s.Blocks) > len(s.Exps) {
 		return s.Blocks[len(s.Blocks)-1].Eval(ctx.NewChild())
 	}
-	return nil
+	return nil, nil
 }
 
 func isTruthy(val Value) bool {
@@ -508,27 +630,37 @@ type FunctionValue struct {
 	Body     Block
 }
 
-func (fb *FunctionBody) Eval(ctx *Context) Value {
+func (fb *FunctionBody) Eval(ctx *Context) (Value, error) {
 	return &FunctionValue{
 		Params:   fb.ParameterList.Names,
 		IsVarArg: fb.ParameterList.IsVarArg,
 		Body:     fb.Block,
-	}
+	}, nil
 }
-func (f *Function) Eval(ctx *Context) Value {
-	fnVal := f.FuncBody.Eval(ctx).(*FunctionValue)
+func (f *Function) Eval(ctx *Context) (Value, error) {
+	body, err := f.FuncBody.Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error evaluating function body: %w", err)
+	}
+	fnVal, ok := body.(*FunctionValue)
+	if !ok {
+		return nil, fmt.Errorf("expected function value, got: %T", fnVal)
+	}
 
 	if len(f.FunctionName.PrefixNames) > 0 {
 		table := ctx.Get(f.FunctionName.PrefixNames[0]).(map[interface{}]Value)
-		for _, name := range f.FunctionName.PrefixNames[1:] {
+		for i, name := range f.FunctionName.PrefixNames[1:] {
 			if field, ok := table[name]; ok {
 				if innerTable, ok := field.(map[interface{}]Value); ok {
 					table = innerTable
 				} else {
-					panic("expected table for function prefix")
+					return nil, fmt.Errorf("expected table for prefix name '%s', got: %T", name, field)
 				}
 			} else {
-				panic("undefined prefix in function name: " + strings.Join(f.FunctionName.PrefixNames, "."))
+				return nil, fmt.Errorf(
+					"undefined table name '%s' in function definition",
+					strings.Join(f.FunctionName.PrefixNames[:i+2], "."),
+				)
 			}
 		}
 		if f.FunctionName.IsMethod {
@@ -539,5 +671,5 @@ func (f *Function) Eval(ctx *Context) Value {
 		ctx.Set(f.FunctionName.Name, fnVal)
 	}
 
-	return nil
+	return nil, nil
 }

@@ -25,31 +25,19 @@ func main() {
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error reading file: %s", err.Error()), -2)
 			}
-			l := lexer.NewLexer(string(buf))
-			//var tokens []lexer.Token
-			//for l.HasNext() {
-			//	token := l.NextToken()
-			//	tokens = append(tokens, token)
-			//}
-			//// Print tokens for debugging
-			//for _, token := range tokens {
-			//	fmt.Printf("Token: %s, Type: %s\n", token.Value, token.Type)
-			//}
 
+			l := lexer.NewLexer(string(buf))
 			p := parser.NewParser(l)
+
 			block, err := p.Parse()
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error parsing file: %s", err.Error()), -3)
 			}
-			//// for debugging
-			//fmt.Printf("Parsed Block: %+v\n", block)
-			//for _, statement := range block.Statements {
-			//	fmt.Printf("Statement: %+v\n", statement)
-			//	if stmt, ok := statement.(*ast.BinaryOperatorExpression); ok {
-			//		fmt.Printf("Binary Operator: %s, Left: %s, Right: %s\n", stmt.Operator.Value, stmt.Left, stmt.Right)
-			//	}
-			//}
-			val := block.Eval(ast.NewRootContext())
+
+			val, err := block.Eval(ast.NewRootContext())
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("Error during evaluation: %s", err.Error()), -4)
+			}
 
 			fmt.Printf("Evaluation Result: %+v", val)
 			return nil
