@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"math"
 	"strings"
 
@@ -17,10 +18,14 @@ type Context struct {
 }
 
 func NewRootContext() *Context {
-	return &Context{
+	ctx := &Context{
 		Variables: make(map[string]Value),
 		globals:   make(map[string]Value),
 	}
+	ctx.Set("print", printFn)
+	ctx.Set("assert", assertFn)
+
+	return ctx
 }
 
 func (ctx *Context) NewChild() *Context {
@@ -242,6 +247,7 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 	prefixVal := fc.PrefixExp.Eval(ctx)
 	var (
 		fn           *FunctionValue
+		fnNative     *NativeFunction
 		table        map[interface{}]Value
 		ok           bool
 		isMethodCall bool
@@ -261,9 +267,13 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 			panic("prefix expression is not a table for method call")
 		}
 	} else {
-		fn, ok = prefixVal.(*FunctionValue)
-		if !ok {
-			panic("expected function value for function call")
+		switch val := prefixVal.(type) {
+		case *NativeFunction:
+			fnNative = val
+		case *FunctionValue:
+			fn = val
+		default:
+			panic("expected function or native function for function call, got: " + fmt.Sprintf("%T", prefixVal))
 		}
 	}
 
@@ -279,6 +289,10 @@ func (fc *FunctionCall) Eval(ctx *Context) Value {
 		args = append(args, a.Eval(ctx))
 	case *LiteralString:
 		args = append(args, a.Value)
+	}
+
+	if fnNative != nil {
+		return fnNative.Call(fnCtx, args)
 	}
 
 	params := fn.Params
@@ -492,7 +506,6 @@ type FunctionValue struct {
 	Params   []string
 	IsVarArg bool
 	Body     Block
-	isMethod bool
 }
 
 func (fb *FunctionBody) Eval(ctx *Context) Value {
@@ -520,7 +533,6 @@ func (f *Function) Eval(ctx *Context) Value {
 		}
 		if f.FunctionName.IsMethod {
 			fnVal.Params = append([]string{"self"}, fnVal.Params...)
-			fnVal.isMethod = true
 		}
 		table[f.FunctionName.Name] = fnVal
 	} else {

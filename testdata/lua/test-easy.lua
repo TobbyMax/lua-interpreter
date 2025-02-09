@@ -16,6 +16,9 @@ table = {
 }
 
 table.a = 6
+
+assert(table.a == 6, "table.a should be 6")
+
 table[6] = 7
 
 a = table.r.d
@@ -84,4 +87,16 @@ local div = function(a, b)
     return a / b
 end
 
+-- local t = {name = "Lua", version = 5.4, isAwesome = true}
+-- local f, s, var = pairs(t)
+-- print(f)     --> function: 0x...
+-- print(s)     --> table: 0x...
+-- print(var)
+-- while true do
+--   local k, v = f(s, var)
+--   if k == nil then break end
+--   print(k, v)
+--   var = k
+-- end
+--
 return add(a, b, c)
