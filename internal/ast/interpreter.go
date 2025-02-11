@@ -11,6 +11,7 @@ import (
 
 var (
 	ErrBreak                = errors.New("break statement outside of loop")
+	ErrVarArgNotDefined     = errors.New("cannot use '...' outside a vararg function ")
 	ErrBitwiseAndOnlyInt    = errors.New("bitwise AND can only be applied to integers")
 	ErrBitwiseOrOnlyInt     = errors.New("bitwise OR can only be applied to integers")
 	ErrUnaryMinusOnlyNum    = errors.New("unary minus can only be applied to numbers")
@@ -103,8 +104,11 @@ func (n *NilExpression) Eval(_ *Context) (Value, error) {
 	return nil, nil
 }
 
-func (v *VarArgExpression) Eval(_ *Context) (Value, error) {
-	panic("vararg not implemented in this context")
+func (v *VarArgExpression) Eval(ctx *Context) (Value, error) {
+	if ctx.Get("...") != nil {
+		return ctx.Get("..."), nil
+	}
+	return nil, ErrVarArgNotDefined
 }
 
 func (b *BinaryOperatorExpression) Eval(ctx *Context) (Value, error) {
@@ -215,7 +219,7 @@ func (t *TableConstructorExpression) Eval(ctx *Context) (Value, error) {
 	// Lua tables are 1-indexed by default
 	var index float64 = 1
 
-	for _, field := range t.Fields {
+	for i, field := range t.Fields {
 		switch f := field.(type) {
 		case *ExpToExpField:
 			key, _ := f.Key.Eval(ctx)
@@ -226,8 +230,20 @@ func (t *TableConstructorExpression) Eval(ctx *Context) (Value, error) {
 			table[f.Name] = val
 		case *ExpressionField:
 			val, _ := f.Value.Eval(ctx)
-			table[index] = val
-			index++
+			vararg, ok := val.([]Value)
+			if ok && len(vararg) > 0 {
+				if i == len(t.Fields)-1 {
+					for _, v := range vararg {
+						table[index] = v
+						index++
+					}
+				} else {
+					table[index] = vararg[0]
+				}
+			} else {
+				table[index] = val
+				index++
+			}
 		}
 	}
 
@@ -359,12 +375,18 @@ func (fc *FunctionCall) Eval(ctx *Context) (Value, error) {
 			fnCtx.Variables[name] = nil
 		}
 	}
-	// vararg может быть сохранён в `_VARARG` или аналоге
+	if fn.IsVarArg {
+		var varargs []Value
+		if len(args) > len(params) {
+			varargs = args[len(params):]
+		}
+		fnCtx.Variables["..."] = varargs
+	}
 
 	return fn.Body.Eval(fnCtx)
 }
 
-func (s *EmptyStatement) Eval(ctx *Context) (Value, error) {
+func (s *EmptyStatement) Eval(_ *Context) (Value, error) {
 	return nil, nil
 }
 
@@ -406,13 +428,36 @@ func (v *MemberVar) Eval(ctx *Context) (Value, error) {
 }
 
 func (s *LocalVarDeclaration) Eval(ctx *Context) (Value, error) {
-	for i, name := range s.Vars {
-		if i < len(s.Exps) {
+	for i := 0; i < len(s.Vars); i++ {
+		name := s.Vars[i]
+		if i < len(s.Exps)-1 {
 			val, err := s.Exps[i].Eval(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("error evaluating local variable %s: %w", name, err)
 			}
+			vals, ok := val.([]Value)
+			if ok && len(vals) > 0 {
+				val = vals[0]
+			}
 			ctx.SetLocal(name, val)
+		} else if i == len(s.Exps)-1 {
+			val, err := s.Exps[i].Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating local variable %s: %w", name, err)
+			}
+			vals, ok := val.([]Value)
+			if ok {
+				for _, v := range vals {
+					if i < len(s.Vars) {
+						ctx.SetLocal(s.Vars[i], v)
+						i++
+					} else {
+						break
+					}
+				}
+			} else {
+				ctx.SetLocal(name, val)
+			}
 		} else {
 			ctx.SetLocal(name, nil)
 		}
@@ -421,37 +466,50 @@ func (s *LocalVarDeclaration) Eval(ctx *Context) (Value, error) {
 }
 
 func (s *Assignment) Eval(ctx *Context) (Value, error) {
-	for i, v := range s.Vars {
-		var val Value
-		if i < len(s.Exps) {
-			val, _ = s.Exps[i].Eval(ctx)
-		}
-		switch varExpr := v.(type) {
-		case *NameVar:
-			ctx.Set(varExpr.Name, val)
-		case *IndexedVar:
-			prefix, err := varExpr.PrefixExp.Eval(ctx)
+	for i := 0; i < len(s.Vars); i++ {
+		v := s.Vars[i]
+		if i < len(s.Exps)-1 {
+			val, err := s.Exps[i].Eval(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("error evaluating indexed variable prefix: %w", err)
+				return nil, fmt.Errorf("error evaluating local variable %s: %w", v, err)
 			}
-			table, ok := prefix.(map[interface{}]Value)
-			if !ok {
-				return nil, fmt.Errorf("expected table for indexed variable, got: %T", prefix)
+			vals, ok := val.([]Value)
+			if ok && len(vals) > 0 {
+				val = vals[0]
 			}
-			key, _ := varExpr.Exp.Eval(ctx)
-			table[key] = val
-		case *MemberVar:
-			prefix, err := varExpr.PrefixExp.Eval(ctx)
+			err = v.Set(ctx, val)
 			if err != nil {
-				return nil, fmt.Errorf("error evaluating member variable prefix: %w", err)
+				return nil, fmt.Errorf("error setting value for variable %s: %w", v, err)
 			}
-			table, ok := prefix.(map[interface{}]Value)
-			if !ok {
-				return nil, fmt.Errorf("expected table for member variable, got: %T", prefix)
+		} else if i == len(s.Exps)-1 {
+			val, err := s.Exps[i].Eval(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error evaluating local variable %s: %w", v, err)
 			}
-			table[varExpr.Name] = val
-		default:
-			return nil, fmt.Errorf("unknown variable type in assignment: %T", v)
+			vals, ok := val.([]Value)
+			if ok {
+				for _, vl := range vals {
+					if i < len(s.Vars) {
+						err = s.Vars[i].Set(ctx, vl)
+						if err != nil {
+							return nil, fmt.Errorf("error setting value for variable %s: %w", v, err)
+						}
+						i++
+					} else {
+						break
+					}
+				}
+			} else {
+				err = v.Set(ctx, val)
+				if err != nil {
+					return nil, fmt.Errorf("error setting value for variable %s: %w", v, err)
+				}
+			}
+		} else {
+			err := v.Set(ctx, nil)
+			if err != nil {
+				return nil, fmt.Errorf("error setting value for variable %s: %w", v, err)
+			}
 		}
 	}
 	return nil, nil
@@ -637,6 +695,7 @@ func (fb *FunctionBody) Eval(ctx *Context) (Value, error) {
 		Body:     fb.Block,
 	}, nil
 }
+
 func (f *Function) Eval(ctx *Context) (Value, error) {
 	body, err := f.FuncBody.Eval(ctx)
 	if err != nil {
@@ -672,4 +731,40 @@ func (f *Function) Eval(ctx *Context) (Value, error) {
 	}
 
 	return nil, nil
+}
+
+type Settable interface {
+	Set(ctx *Context, val Value) error
+}
+
+func (v *NameVar) Set(ctx *Context, val Value) error {
+	ctx.Set(v.Name, val)
+	return nil
+}
+
+func (v *IndexedVar) Set(ctx *Context, val Value) error {
+	prefix, err := v.PrefixExp.Eval(ctx)
+	if err != nil {
+		return fmt.Errorf("error evaluating indexed variable prefix: %w", err)
+	}
+	table, ok := prefix.(map[interface{}]Value)
+	if !ok {
+		return fmt.Errorf("expected table for indexed variable, got: %T", prefix)
+	}
+	key, _ := v.Exp.Eval(ctx)
+	table[key] = val
+	return nil
+}
+
+func (v *MemberVar) Set(ctx *Context, val Value) error {
+	prefix, err := v.PrefixExp.Eval(ctx)
+	if err != nil {
+		return fmt.Errorf("error evaluating member variable prefix: %w", err)
+	}
+	table, ok := prefix.(map[interface{}]Value)
+	if !ok {
+		return fmt.Errorf("expected table for member variable, got: %T", prefix)
+	}
+	table[v.Name] = val
+	return nil
 }

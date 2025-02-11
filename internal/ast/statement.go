@@ -17,6 +17,7 @@ type (
 	// var ::=  Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
 	Var interface {
 		Evaluable
+		Settable
 	}
 	LocalVarDeclaration struct {
 		Vars []string

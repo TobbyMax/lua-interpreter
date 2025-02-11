@@ -35,8 +35,23 @@ var printFn = &NativeFunction{
 			if i > 0 {
 				fmt.Print("\t")
 			}
-			fmt.Print(toString(arg))
+			vals, ok := arg.([]Value)
+			if ok && len(vals) > 0 {
+				if i == len(args)-1 {
+					for j, v := range vals {
+						if j > 0 {
+							fmt.Print("\t")
+						}
+						fmt.Print(toString(v))
+					}
+				} else {
+					fmt.Print(toString(vals[0]))
+				}
+			} else {
+				fmt.Print(toString(arg))
+			}
 		}
+
 		fmt.Println()
 		return nil
 	},

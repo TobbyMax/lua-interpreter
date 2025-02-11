@@ -85,54 +85,6 @@ func (p *Parser) parseVarList() ([]ast.Var, error) {
 	return vars, nil
 }
 
-// var ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name
-// prefixexp ::= var | functioncall | ‘(’ exp ‘)’
-// functioncall ::= prefixexp args | prefixexp ‘:’ Name args
-// var ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp args ‘[’ exp ‘]’ | prefixexp ‘:’ Name args ‘[’ exp ‘]’
-//
-//	| prefixexp ‘.’ Name | prefixexp args ‘.’ Name | prefixexp ‘:’ Name args ‘.’ Name
-func (p *Parser) parseVar() (ast.Var, error) {
-	name := p.currentToken.Value
-	p.currentToken = p.lexer.NextToken()
-
-	v, err := p.parsePrefixExpressionTail(&ast.NameVar{Name: name})
-	if err != nil {
-		return nil, err
-	}
-	switch v.(type) {
-	case *ast.NameVar, *ast.IndexedVar, *ast.MemberVar:
-		return v, nil
-	default:
-		return nil, fmt.Errorf("unexpected var type: %T", v)
-	}
-}
-
-func (p *Parser) parseVarPostfix(prefixExp ast.PrefixExpression) (ast.Var, error) {
-	switch p.currentToken.Type {
-	case lexer.TokenLeftBracket:
-		p.currentToken = p.lexer.NextToken()
-		exp, err := p.parseExpression()
-		if err != nil {
-			return nil, err
-		}
-		if p.currentToken.Type != lexer.TokenRightBracket {
-			return nil, errors.New("missing ']'")
-		}
-		p.currentToken = p.lexer.NextToken()
-		return &ast.IndexedVar{PrefixExp: prefixExp, Exp: exp}, nil
-	case lexer.TokenDot:
-		p.currentToken = p.lexer.NextToken()
-		if p.currentToken.Type != lexer.TokenIdentifier {
-			return nil, errors.New("missing identifier after '.'")
-		}
-		name := p.currentToken.Value
-		p.currentToken = p.lexer.NextToken()
-		return &ast.MemberVar{PrefixExp: prefixExp, Name: name}, nil
-	default:
-		return prefixExp, nil
-	}
-}
-
 func (p *Parser) parseLabel() (*ast.Label, error) {
 	p.currentToken = p.lexer.NextToken()
 	if p.currentToken.Type != lexer.TokenIdentifier {

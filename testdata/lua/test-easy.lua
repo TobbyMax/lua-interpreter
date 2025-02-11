@@ -1,6 +1,15 @@
+function All(...)
+    print(...)
+    return ...
+end
+
+x = {All(1, 22, 3)}
+
+print("x[3]", x[3])
+
 s = 1
 table = {
-    a = 1,
+    x, a = 1,
     ["b"] = 2,
     3,
     r = {
@@ -14,6 +23,8 @@ table = {
         return x + 1
     end
 }
+
+print("table.b", table.a)
 
 table.a = 6
 
@@ -138,4 +149,21 @@ end
 
 :: skip ::
 
-return add(a, b, c)
+function sum(...)
+    local args = {...}
+    local sum = 0
+    for i = 1, 100 do
+        if args[i] == nil then
+            break
+        end
+        sum = sum + args[i]
+    end
+    return sum
+end
+
+function first(...)
+    local x = ...
+    return x
+end
+
+return sum(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)

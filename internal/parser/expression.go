@@ -169,7 +169,13 @@ func (p *Parser) parseField() (ast.Field, error) {
 		name := p.currentToken.Value
 		p.currentToken = p.lexer.NextToken()
 		if p.currentToken.Type != lexer.TokenAssign {
-			return &ast.ExpressionField{Value: &ast.NameVar{Name: name}}, nil
+			exp, err := p.parsePrefixExpressionTail(&ast.NameVar{Name: name})
+			if err != nil {
+				return nil, err
+			}
+			return &ast.ExpressionField{
+				Value: exp,
+			}, nil
 		}
 		p.currentToken = p.lexer.NextToken()
 		value, err := p.parseExpression()
