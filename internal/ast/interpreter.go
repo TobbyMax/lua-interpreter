@@ -30,11 +30,12 @@ func (e *GotoError) Error() string {
 type Value interface{}
 
 type Context struct {
-	Parent    *Context
-	Return    Value // для возврата из функций
-	Variables map[string]Value
-	globals   map[string]Value // только в корне
-	labels    map[string]int   // для меток goto
+	Parent     *Context
+	Return     Value // для возврата из функций
+	isReturned bool
+	Variables  map[string]Value
+	globals    map[string]Value // только в корне
+	labels     map[string]int   // для меток goto
 }
 
 func NewRootContext() *Context {
@@ -272,7 +273,11 @@ func (b *Block) Eval(ctx *Context) (Value, error) {
 			return nil, fmt.Errorf("error evaluating statement: %w", err)
 		}
 
-		if ctx.Return != nil {
+		if ctx.isReturned {
+			if ctx.Parent != nil {
+				ctx.Parent.isReturned = true
+				ctx.Parent.Return = ctx.Return
+			}
 			return ctx.Return, nil
 		}
 	}
@@ -285,10 +290,15 @@ func (b *Block) Eval(ctx *Context) (Value, error) {
 			}
 			vals = append(vals, val)
 		}
+		ctx.isReturned = true
 		if len(vals) == 1 {
 			ctx.Return = vals[0]
 		} else {
 			ctx.Return = vals // Можно сделать многозначный return как в Lua
+		}
+		if ctx.Parent != nil {
+			ctx.Parent.isReturned = true
+			ctx.Parent.Return = ctx.Return
 		}
 		return ctx.Return, nil
 	}
@@ -383,7 +393,9 @@ func (fc *FunctionCall) Eval(ctx *Context) (Value, error) {
 		fnCtx.Variables["..."] = varargs
 	}
 
-	return fn.Body.Eval(fnCtx)
+	res, err := fn.Body.Eval(fnCtx)
+	ctx.isReturned = false
+	return res, err
 }
 
 func (s *EmptyStatement) Eval(_ *Context) (Value, error) {

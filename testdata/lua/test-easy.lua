@@ -1,5 +1,5 @@
 function All(...)
-    print(...)
+    print("all:", ...)
     return ...
 end
 
@@ -139,7 +139,6 @@ goto label1
 
 print(s)
 
-
 for i = 1, 10 do
     if i == 7 then
         goto skip
@@ -161,9 +160,31 @@ function sum(...)
     return sum
 end
 
+print("Sum of 1, 2, 3, 4, 5:", sum(1, 2, 3, 4, 5))
+
 function first(...)
     local x = ...
     return x
 end
 
-return sum(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+print("first of 1, 2, 3, 4, 5:", first(1, 2, 3, 4, 5))
+
+function factorial(n)
+    if n == 0 then
+        return 1
+    else
+        return n * factorial(n - 1)
+    end
+end
+
+function ads(a)
+    for i = 1, 100 do
+        if a == i then
+            return i
+        end
+    end
+end
+
+print("Factorial 5:", factorial(5))
+
+return 0
