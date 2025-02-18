@@ -1,3 +1,4 @@
+//go:generate mockgen -destination=./mock/parser_mock.go -package=mock lua-interpreter/internal/parser scanner
 package parser
 
 import (
@@ -5,12 +6,20 @@ import (
 	"lua-interpreter/internal/lexer"
 )
 
-type Parser struct {
-	lexer        *lexer.Lexer
-	currentToken lexer.Token
-}
+type (
+	scanner interface {
+		NextToken() lexer.Token
+	}
+	IParser interface {
+		Parse() (ast.Block, error)
+	}
+	Parser struct {
+		lexer        scanner
+		currentToken lexer.Token
+	}
+)
 
-func NewParser(lexer *lexer.Lexer) *Parser {
+func New(lexer scanner) *Parser {
 	return &Parser{
 		lexer: lexer,
 	}

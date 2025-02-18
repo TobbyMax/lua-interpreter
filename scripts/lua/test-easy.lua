@@ -107,19 +107,6 @@ local div = function(a, b)
 end
 
 
--- local t = {name = "Lua", version = 5.4, isAwesome = true}
--- local f, s, var = pairs(t)
--- print(f)     --> function: 0x...
--- print(s)     --> table: 0x...
--- print(var)
--- while true do
---   local k, v = f(s, var)
---   if k == nil then break end
---   print(k, v)
---   var = k
--- end
---
-
 s = 1
 :: label1 ::
 

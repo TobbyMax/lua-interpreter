@@ -7,9 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"lua-interpreter/internal/ast"
-	"lua-interpreter/internal/lexer"
-	"lua-interpreter/internal/parser"
+	"lua-interpreter/internal/interpreter"
 )
 
 func main() {
@@ -26,20 +24,11 @@ func main() {
 				return cli.Exit(fmt.Sprintf("Error reading file: %s", err.Error()), -2)
 			}
 
-			l := lexer.NewLexer(string(buf))
-			p := parser.NewParser(l)
-
-			block, err := p.Parse()
+			val, err := interpreter.Eval(string(buf))
 			if err != nil {
-				return cli.Exit(fmt.Sprintf("Error parsing file: %s", err.Error()), -3)
+				return cli.Exit(fmt.Sprintf("Error: %s", err.Error()), -3)
 			}
-
-			val, err := block.Eval(ast.NewRootContext())
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("Error during evaluation: %s", err.Error()), -4)
-			}
-
-			fmt.Printf("Evaluation Result: %+v", val)
+			fmt.Printf("Result: %+v", val)
 			return nil
 		},
 	}

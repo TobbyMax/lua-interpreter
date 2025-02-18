@@ -242,15 +242,20 @@ var keywords = map[string]TokenType{
 	"while":    TokenKeywordWhile,
 }
 
-type Token struct {
-	Type  TokenType
-	Value string
-}
-
-type Lexer struct {
-	input    string
-	position int
-}
+type (
+	ILexer interface {
+		HasNext() bool
+		NextToken() Token
+	}
+	Token struct {
+		Type  TokenType
+		Value string
+	}
+	Lexer struct {
+		input    string
+		position int
+	}
+)
 
 func NewLexer(input string) *Lexer {
 	return &Lexer{
@@ -333,10 +338,12 @@ func (l *Lexer) nextToken() Token {
 					token = Token{TokenError, fmt.Sprintf("Unterminated string literal: %s", input[start:i])}
 					break
 				}
-				if input[i] == '\\' {
-					if i+1 < len(input) && input[i+1] == '\'' {
-						i++
-					}
+				if input[i] == '\\' && i+1 < len(input) && input[i+1] == '\'' {
+					i++
+				}
+				if input[i] == '\\' && i+1 < len(input) && input[i+1] == '"' {
+					raw += input[i : i+1]
+					i++
 				}
 				raw += input[i : i+1]
 				i++
@@ -389,6 +396,7 @@ func (l *Lexer) nextToken() Token {
 		case ch == '-':
 			if i+1 < len(input) && input[i+1] == '-' {
 				start := i
+				success := false
 				if i+2 < len(input) && input[i+2] == '[' {
 					j := i + 3
 					equalCount := 0
@@ -397,6 +405,7 @@ func (l *Lexer) nextToken() Token {
 						j++
 					}
 					if j < len(input) && input[j] == '[' {
+						success = false
 						i = j
 						for i < len(input) {
 							if input[i] == ']' {
@@ -407,6 +416,7 @@ func (l *Lexer) nextToken() Token {
 								}
 								if count == equalCount && i+1 < len(input) && input[i+1] == ']' {
 									i += 2
+									success = true
 									break
 								}
 							}
@@ -414,7 +424,7 @@ func (l *Lexer) nextToken() Token {
 						}
 					}
 				}
-				if i >= len(input) {
+				if i >= len(input) && !success {
 					token = Token{TokenError, input[start:i]}
 				} else if i > start {
 					token = Token{TokenComment, input[start:i]}
