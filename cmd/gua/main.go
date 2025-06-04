@@ -24,11 +24,11 @@ func main() {
 				return cli.Exit(fmt.Sprintf("Error reading file: %s", err.Error()), -2)
 			}
 
-			val, err := interpreter.Eval(string(buf))
+			_, err = interpreter.Eval(string(buf))
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error: %s", err.Error()), -3)
 			}
-			fmt.Printf("Result: %+v", val)
+			//fmt.Printf("Result: %+v", val)
 			return nil
 		},
 	}
